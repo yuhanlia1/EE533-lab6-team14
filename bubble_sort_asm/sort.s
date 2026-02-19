@@ -100,49 +100,4 @@ bubble_sort:
 	ldr	fp, [sp], #4
 	bx	lr
 	.size	bubble_sort, .-bubble_sort
-	.section	.rodata
-	.align	2
-.LC0:
-	.word	5
-	.word	1
-	.word	2
-	.word	4
-	.word	8
-	.word	10
-	.text
-	.align	2
-	.global	main
-	.syntax unified
-	.arm
-	.fpu softvfp
-	.type	main, %function
-main:
-	@ Function supports interworking.
-	@ args = 0, pretend = 0, frame = 24
-	@ frame_needed = 1, uses_anonymous_args = 0
-	push	{fp, lr}
-	add	fp, sp, #4
-	sub	sp, sp, #24
-	ldr	r3, .L9
-	sub	ip, fp, #28
-	mov	lr, r3
-	ldmia	lr!, {r0, r1, r2, r3}
-	stmia	ip!, {r0, r1, r2, r3}
-	ldm	lr, {r0, r1}
-	stm	ip, {r0, r1}
-	sub	r3, fp, #28
-	mov	r1, #6
-	mov	r0, r3
-	bl	bubble_sort
-	mov	r3, #0
-	mov	r0, r3
-	sub	sp, fp, #4
-	@ sp needed
-	pop	{fp, lr}
-	bx	lr
-.L10:
-	.align	2
-.L9:
-	.word	.LC0
-	.size	main, .-main
 	.ident	"GCC: (15:9-2019-q4-0ubuntu1) 9.2.1 20191025 (release) [ARM/arm-9-branch revision 277599]"

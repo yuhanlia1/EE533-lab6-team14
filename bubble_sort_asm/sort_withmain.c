@@ -12,3 +12,12 @@ void bubble_sort(int *a, int n)
     }
 }
 
+int main(void)
+{
+    int data[6] = { 5, 1, 2, 4, 8, 10 };
+    
+    bubble_sort(data, 6);
+
+    return 0;
+}
+
