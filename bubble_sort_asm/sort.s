@@ -105,10 +105,10 @@ bubble_sort:
 .LC0:
 	.word	5
 	.word	1
-	.word	4
 	.word	2
+	.word	4
 	.word	8
-	.word	0
+	.word	10
 	.text
 	.align	2
 	.global	main
@@ -118,11 +118,11 @@ bubble_sort:
 	.type	main, %function
 main:
 	@ Function supports interworking.
-	@ args = 0, pretend = 0, frame = 32
+	@ args = 0, pretend = 0, frame = 24
 	@ frame_needed = 1, uses_anonymous_args = 0
 	push	{fp, lr}
 	add	fp, sp, #4
-	sub	sp, sp, #32
+	sub	sp, sp, #24
 	ldr	r3, .L9
 	sub	ip, fp, #28
 	mov	lr, r3
@@ -134,9 +134,6 @@ main:
 	mov	r1, #6
 	mov	r0, r3
 	bl	bubble_sort
-	ldr	r3, [fp, #-28]
-	str	r3, [fp, #-32]
-	ldr	r3, [fp, #-32]
 	mov	r3, #0
 	mov	r0, r3
 	sub	sp, fp, #4
