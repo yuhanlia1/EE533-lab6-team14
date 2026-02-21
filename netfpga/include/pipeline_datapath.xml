@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<nf:module xmlns:nf="http://www.NetFPGA.org/NF2_register_system"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:schemaLocation="http://www.NetFPGA.org/NF2_register_system NF2_register_system.xsd ">
+
+    <nf:name>pipeline_datapath</nf:name>
+    <nf:prefix>pipeline_datapath</nf:prefix>
+    <nf:location>udp</nf:location>
+    <nf:description>Registers for pipeline datapath</nf:description>
+    <nf:blocksize>64</nf:blocksize>
+
+    <nf:registers>
+
+        <!-- ================= Software Registers ================= -->
+
+        <nf:register>
+            <nf:name>sw_imem_ctrl</nf:name>
+            <nf:type>generic_software32</nf:type>
+        </nf:register>
+
+        <nf:register>
+            <nf:name>sw_imem_write</nf:name>
+            <nf:type>generic_software32</nf:type>
+        </nf:register>
+
+        <nf:register>
+            <nf:name>sw_imem_addr</nf:name>
+            <nf:type>generic_software32</nf:type>
+        </nf:register>
+
+        <nf:register>
+            <nf:name>sw_imem_wdata</nf:name>
+            <nf:type>generic_software32</nf:type>
+        </nf:register>
+
+        <nf:register>
+            <nf:name>sw_dmem_ctrl</nf:name>
+            <nf:type>generic_software32</nf:type>
+        </nf:register>
+
+        <nf:register>
+            <nf:name>sw_dmem_write</nf:name>
+            <nf:type>generic_software32</nf:type>
+        </nf:register>
+
+        <nf:register>
+            <nf:name>sw_dmem_addr</nf:name>
+            <nf:type>generic_software32</nf:type>
+        </nf:register>
+
+        <nf:register>
+            <nf:name>sw_dmem_wdata_hi</nf:name>
+            <nf:type>generic_software32</nf:type>
+        </nf:register>
+		
+		<nf:register>
+            <nf:name>sw_dmem_wdata_lo</nf:name>
+            <nf:type>generic_software32</nf:type>
+        </nf:register>
+		
+		<nf:register>
+            <nf:name>sw_dbg_regsel</nf:name>
+            <nf:type>generic_software32</nf:type>
+        </nf:register>
+
+        <!-- ================= Hardware Registers ================= -->
+
+        <nf:register>
+            <nf:name>hw_imem_rdata</nf:name>
+            <nf:type>generic_hardware32</nf:type>
+        </nf:register>
+
+        <nf:register>
+            <nf:name>hw_dmem_r_data_hi</nf:name>
+            <nf:type>generic_hardware32</nf:type>
+        </nf:register>
+		
+		<nf:register>
+            <nf:name>hw_dmem_r_data_lo</nf:name>
+            <nf:type>generic_hardware32</nf:type>
+        </nf:register>
+		
+		<nf:register>
+            <nf:name>hw_dbg_rdata_hi</nf:name>
+            <nf:type>generic_hardware32</nf:type>
+        </nf:register>
+		
+		<nf:register>
+            <nf:name>hw_dbg_rdata_lo</nf:name>
+            <nf:type>generic_hardware32</nf:type>
+        </nf:register>
+
+    </nf:registers>
+</nf:module>
