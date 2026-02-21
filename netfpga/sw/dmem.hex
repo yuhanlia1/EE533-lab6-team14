@@ -1,0 +1,12 @@
+# dmem.hex — generated from sort_rv32i_gen.s
+# .rodata: 6 words
+# Dcache word base = 256  (RODATA_BASE=0x0400)
+# bash: DMEM_BASE_WORD=256 load_mem_file dmem dmem.hex 256
+# Format: <hex_word>  # comment  (auto-increments from DMEM_BASE_WORD)
+#
+0x00000005  # [256] 5
+0xFFFFFFFF  # [257] -1
+0x00000002  # [258] 2
+0x00000004  # [259] 4
+0x0000000A  # [260] 10
+0x00000008  # [261] 8

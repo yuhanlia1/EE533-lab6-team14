@@ -49,12 +49,7 @@
         </nf:register>
 
         <nf:register>
-            <nf:name>sw_dmem_wdata_hi</nf:name>
-            <nf:type>generic_software32</nf:type>
-        </nf:register>
-		
-		<nf:register>
-            <nf:name>sw_dmem_wdata_lo</nf:name>
+            <nf:name>sw_dmem_wdata</nf:name>
             <nf:type>generic_software32</nf:type>
         </nf:register>
 		
@@ -71,22 +66,12 @@
         </nf:register>
 
         <nf:register>
-            <nf:name>hw_dmem_r_data_hi</nf:name>
+            <nf:name>hw_dmem_r_data</nf:name>
             <nf:type>generic_hardware32</nf:type>
         </nf:register>
 		
 		<nf:register>
-            <nf:name>hw_dmem_r_data_lo</nf:name>
-            <nf:type>generic_hardware32</nf:type>
-        </nf:register>
-		
-		<nf:register>
-            <nf:name>hw_dbg_rdata_hi</nf:name>
-            <nf:type>generic_hardware32</nf:type>
-        </nf:register>
-		
-		<nf:register>
-            <nf:name>hw_dbg_rdata_lo</nf:name>
+            <nf:name>hw_dbg_rdata</nf:name>
             <nf:type>generic_hardware32</nf:type>
         </nf:register>
 

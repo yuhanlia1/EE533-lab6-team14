@@ -12,7 +12,7 @@ module id_stage (
 	input  	wire        wist,
 	
 	input	wire [4:0]	dbg_addr,
-	output	reg  [31:0] dbg_rdata,
+	output	wire  [31:0] dbg_rdata,
 	
 	output 	reg  [31:0] imm,
 	output 	wire [10:0] addr_out,   // CHANGED
@@ -47,6 +47,9 @@ wire [31:0] rd1;
 wire [31:0] rd2;
 wire is_lui;
 wire is_auipc;
+
+wire [31:0] dbg_data_rf;
+assign dbg_rdata = dbg_data_rf;
 
 assign opcode   = inst_in[6:0];
 assign funct3   = inst_in[14:12];

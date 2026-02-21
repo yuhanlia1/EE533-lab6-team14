@@ -32,17 +32,14 @@ wire [31:0] sw_imem_wdata;
 wire [31:0] sw_dmem_ctrl;
 wire [31:0] sw_dmem_write;
 wire [31:0] sw_dmem_addr;
-wire [31:0] sw_dmem_wdata_hi;
-wire [31:0] sw_dmem_wdata_lo;
+wire [31:0] sw_dmem_wdata;
 
 wire [31:0] sw_dbg_regsel;
 
 reg  [31:0] hw_imem_rdata;
-reg  [31:0] hw_dmem_r_data_hi;
-reg  [31:0] hw_dmem_r_data_lo;
+reg  [31:0] hw_dmem_rdata;
 
-reg  [31:0] hw_dbg_rdata_hi;
-reg  [31:0] hw_dbg_rdata_lo;
+reg  [31:0] hw_dbg_rdata;
 
 wire imem_interact_en;
 wire imem_sw_we;
@@ -167,23 +164,19 @@ end
 
 always @(posedge clk) begin
     if (reset) begin
-        hw_dmem_r_data_lo <= 32'hDEADBEEF;
-        hw_dmem_r_data_hi <= 32'hDEADBEEF;
+        hw_dmem_rdata <= 32'hDEADBEEF;
     end else begin
         if (dmem_interact_en && !dmem_sw_we) begin
-            hw_dmem_r_data_lo <= mem_mm;
-            hw_dmem_r_data_hi <= 32'b0;
+            hw_dmem_rdata <= mem_mm;
         end
     end
 end
 
 always @(posedge clk) begin
     if (reset) begin
-        hw_dbg_rdata_lo <= 32'hDEADBEEF;
-        hw_dbg_rdata_hi <= 32'hDEADBEEF;
+        hw_dbg_rdata <= 32'hDEADBEEF;
     end else begin
-        hw_dbg_rdata_lo <= dbg_rdata;
-        hw_dbg_rdata_hi <= 32'b0;
+        hw_dbg_rdata <= dbg_rdata;
     end
 end
 
@@ -342,7 +335,7 @@ mm_stage mm_stage_inst (
 
   .dmem_interact_en (dmem_interact_en),
   .dmem_sw_addr     (sw_dmem_addr[8:0]),
-  .dmem_sw_wdata    (sw_dmem_wdata_lo),
+  .dmem_sw_wdata    (sw_dmem_wdata),
   .dmem_sw_we       (dmem_sw_we),
 
   .alu_out          (alu_mm),
@@ -393,8 +386,8 @@ generic_regs
     .REG_ADDR_WIDTH      (`PIPELINE_DATAPATH_REG_ADDR_WIDTH),
 `endif
     .NUM_COUNTERS        (0),
-    .NUM_SOFTWARE_REGS   (10),
-    .NUM_HARDWARE_REGS   (5)
+    .NUM_SOFTWARE_REGS   (9),
+    .NUM_HARDWARE_REGS   (3)
 ) module_regs (
     .reg_req_in       (reg_req_in),
     .reg_ack_in       (reg_ack_in),
@@ -416,8 +409,7 @@ generic_regs
     .software_regs    ({
         sw_dbg_regsel,
 
-        sw_dmem_wdata_lo,
-        sw_dmem_wdata_hi,
+        sw_dmem_wdata,
         sw_dmem_addr,
         sw_dmem_write,
         sw_dmem_ctrl,
@@ -428,11 +420,9 @@ generic_regs
     }),
 
     .hardware_regs    ({
-        hw_dbg_rdata_lo,
-        hw_dbg_rdata_hi,
+        hw_dbg_rdata,
 
-        hw_dmem_r_data_lo,
-        hw_dmem_r_data_hi,
+        hw_dmem_rdata,
         hw_imem_rdata
     }),
 

@@ -1,0 +1,189 @@
+# imem.hex — generated from sort_rv32i_gen.s
+# 91 insts  85 NOPs  176 slots
+# HALT byte PC=700  (word slot 175)
+# STACK_TOP=0x0300  RODATA_BASE=0x0400
+# Format: 0x<word>  # comment  (sequential, bash auto-increments from word 0)
+# bash: load_mem_file imem imem.hex 0
+#
+0x30000113  # [0] addi sp,x0,768  [RAW sp (dist-1, +2 NOP)]
+0x00000013  # [1] NOP
+0x00000013  # [2] NOP
+# <main> (byte 12, slot 3)
+0xFF810113  # [3] addi sp,sp,-8  [RAW sp (dist-1, +2 NOP)]
+0x00000013  # [4] NOP
+0x00000013  # [5] NOP
+0x00812023  # [6] sw s0,0(sp)
+0x00112223  # [7] sw ra,4(sp)
+0x00410413  # [8] addi s0,sp,4
+0xFD810113  # [9] addi sp,sp,-40
+0x000006B7  # [10] lui a3,%hi(.LC0)  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [11] NOP
+0x00000013  # [12] NOP
+0x40068693  # [13] addi a3,a3,%lo(.LC0)  [RAW a3 (dist-2, +1 NOP)]
+0x00000013  # [14] NOP
+0xFD440293  # [15] addi t0,s0,-44
+0x00068093  # [16] mv ra,a3  [RAW ra (dist-1, +2 NOP)]
+0x00000013  # [17] NOP
+0x00000013  # [18] NOP
+0x0000A503  # [19] lw a0,0(ra)
+0x0040A583  # [20] lw a1,4(ra)
+0x0080A603  # [21] lw a2,8(ra)
+0x00C0A683  # [22] lw a3,12(ra)
+0x01008093  # [23] addi ra,ra,16
+0x00A2A023  # [24] sw a0,0(t0)
+0x00B2A223  # [25] sw a1,4(t0)
+0x00C2A423  # [26] sw a2,8(t0)
+0x00D2A623  # [27] sw a3,12(t0)
+0x01028293  # [28] addi t0,t0,16
+0x0000A503  # [29] lw a0,0(ra)  [RAW a0 (dist-2, +1 NOP)]
+0x00000013  # [30] NOP
+0x0040A583  # [31] lw a1,4(ra)  [RAW a1 (dist-2, +1 NOP)]
+0x00000013  # [32] NOP
+0x00A2A023  # [33] sw a0,0(t0)
+0x00B2A223  # [34] sw a1,4(t0)
+0x00600693  # [35] li a3,6  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [36] NOP
+0x00000013  # [37] NOP
+0xFED42823  # [38] sw a3,-16(s0)
+0x00000693  # [39] li a3,0  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [40] NOP
+0x00000013  # [41] NOP
+0xFED42C23  # [42] sw a3,-8(s0)
+0x1C80006F  # [43] j .L2
+# <.L6> (byte 176, slot 44)
+0x00000693  # [44] li a3,0  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [45] NOP
+0x00000013  # [46] NOP
+0xFED42A23  # [47] sw a3,-12(s0)
+0x1680006F  # [48] j .L3
+# <.L5> (byte 196, slot 49)
+0xFF442683  # [49] lw a3,-12(s0)  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [50] NOP
+0x00000013  # [51] NOP
+0x00269693  # [52] slli a3,a3,2
+0xFFC40613  # [53] addi a2,s0,-4  [RAW a2 (dist-1, +2 NOP)]
+0x00000013  # [54] NOP
+0x00000013  # [55] NOP
+0x00D606B3  # [56] add a3,a2,a3  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [57] NOP
+0x00000013  # [58] NOP
+0xFD86A603  # [59] lw a2,-40(a3)
+0xFF442683  # [60] lw a3,-12(s0)  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [61] NOP
+0x00000013  # [62] NOP
+0x00168693  # [63] addi a3,a3,1  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [64] NOP
+0x00000013  # [65] NOP
+0x00269693  # [66] slli a3,a3,2
+0xFFC40593  # [67] addi a1,s0,-4  [RAW a1 (dist-1, +2 NOP)]
+0x00000013  # [68] NOP
+0x00000013  # [69] NOP
+0x00D586B3  # [70] add a3,a1,a3  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [71] NOP
+0x00000013  # [72] NOP
+0xFD86A683  # [73] lw a3,-40(a3)  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [74] NOP
+0x00000013  # [75] NOP
+0x0CC6DE63  # [76] bge a3,a2,.L4
+0xFF442683  # [77] lw a3,-12(s0)  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [78] NOP
+0x00000013  # [79] NOP
+0x00269693  # [80] slli a3,a3,2
+0xFFC40613  # [81] addi a2,s0,-4  [RAW a2 (dist-1, +2 NOP)]
+0x00000013  # [82] NOP
+0x00000013  # [83] NOP
+0x00D606B3  # [84] add a3,a2,a3  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [85] NOP
+0x00000013  # [86] NOP
+0xFD86A683  # [87] lw a3,-40(a3)  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [88] NOP
+0x00000013  # [89] NOP
+0xFED42623  # [90] sw a3,-20(s0)
+0xFF442683  # [91] lw a3,-12(s0)  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [92] NOP
+0x00000013  # [93] NOP
+0x00168693  # [94] addi a3,a3,1  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [95] NOP
+0x00000013  # [96] NOP
+0x00269693  # [97] slli a3,a3,2
+0xFFC40613  # [98] addi a2,s0,-4  [RAW a2 (dist-1, +2 NOP)]
+0x00000013  # [99] NOP
+0x00000013  # [100] NOP
+0x00D606B3  # [101] add a3,a2,a3  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [102] NOP
+0x00000013  # [103] NOP
+0xFD86A603  # [104] lw a2,-40(a3)
+0xFF442683  # [105] lw a3,-12(s0)  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [106] NOP
+0x00000013  # [107] NOP
+0x00269693  # [108] slli a3,a3,2
+0xFFC40593  # [109] addi a1,s0,-4  [RAW a1 (dist-1, +2 NOP)]
+0x00000013  # [110] NOP
+0x00000013  # [111] NOP
+0x00D586B3  # [112] add a3,a1,a3  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [113] NOP
+0x00000013  # [114] NOP
+0xFCC6AC23  # [115] sw a2,-40(a3)
+0xFF442683  # [116] lw a3,-12(s0)  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [117] NOP
+0x00000013  # [118] NOP
+0x00168693  # [119] addi a3,a3,1  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [120] NOP
+0x00000013  # [121] NOP
+0x00269693  # [122] slli a3,a3,2
+0xFFC40613  # [123] addi a2,s0,-4  [RAW a2 (dist-1, +2 NOP)]
+0x00000013  # [124] NOP
+0x00000013  # [125] NOP
+0x00D606B3  # [126] add a3,a2,a3
+0xFEC42603  # [127] lw a2,-20(s0)  [RAW a2 (dist-1, +2 NOP)]
+0x00000013  # [128] NOP
+0x00000013  # [129] NOP
+0xFCC6AC23  # [130] sw a2,-40(a3)
+# <.L4> (byte 524, slot 131)
+0xFF442683  # [131] lw a3,-12(s0)  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [132] NOP
+0x00000013  # [133] NOP
+0x00168693  # [134] addi a3,a3,1  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [135] NOP
+0x00000013  # [136] NOP
+0xFED42A23  # [137] sw a3,-12(s0)
+# <.L3> (byte 552, slot 138)
+0xFF042683  # [138] lw a3,-16(s0)  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [139] NOP
+0x00000013  # [140] NOP
+0xFFF68613  # [141] addi a2,a3,-1
+0xFF842683  # [142] lw a3,-8(s0)  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [143] NOP
+0x00000013  # [144] NOP
+0x40D606B3  # [145] sub a3,a2,a3
+0xFF442603  # [146] lw a2,-12(s0)  [RAW a2 (dist-1, +2 NOP)]
+0x00000013  # [147] NOP
+0x00000013  # [148] NOP
+0xE6D648E3  # [149] blt a2,a3,.L5
+0xFF842683  # [150] lw a3,-8(s0)  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [151] NOP
+0x00000013  # [152] NOP
+0x00168693  # [153] addi a3,a3,1  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [154] NOP
+0x00000013  # [155] NOP
+0xFED42C23  # [156] sw a3,-8(s0)
+# <.L2> (byte 628, slot 157)
+0xFF042683  # [157] lw a3,-16(s0)  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [158] NOP
+0x00000013  # [159] NOP
+0xFFF68693  # [160] addi a3,a3,-1
+0xFF842603  # [161] lw a2,-8(s0)  [RAW a2 (dist-1, +2 NOP)]
+0x00000013  # [162] NOP
+0x00000013  # [163] NOP
+0xE2D640E3  # [164] blt a2,a3,.L6
+0x00000693  # [165] li a3,0  [RAW a3 (dist-1, +2 NOP)]
+0x00000013  # [166] NOP
+0x00000013  # [167] NOP
+0x00068513  # [168] mv a0,a3
+0xFFC40113  # [169] addi sp,s0,-4  [RAW sp (dist-1, +2 NOP)]
+0x00000013  # [170] NOP
+0x00000013  # [171] NOP
+0x00012403  # [172] lw s0,0(sp)
+0x00412083  # [173] lw ra,4(sp)
+0x00810113  # [174] addi sp,sp,8
+0x00000063  # [175] ret
