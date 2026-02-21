@@ -1,10 +1,8 @@
-// ID-stage 
-
 module id_stage (
   input  wire        clk,
   input  wire        rst,
 
-  input  wire [8:0]  pc_in,
+  input  wire [10:0] pc_in,      // CHANGED
   input  wire [31:0] inst_in,
 
   input  wire [4:0]  wb_rd_addr,
@@ -14,7 +12,7 @@ module id_stage (
   input  wire        wist,
 
   output reg  [31:0] imm,
-  output wire [8:0]  addr_out,
+  output wire [10:0] addr_out,   // CHANGED
   output wire        jump_valid,
 
   output wire        wreg,
@@ -26,7 +24,7 @@ module id_stage (
   output wire        ALUsrc,
   output wire        WMM,
   output wire        RMM,
-  output wire        MOA,		// Memory or alu (MemorytoReg)
+  output wire        MOA,
   output wire        jal_jalr
 );
 
@@ -34,7 +32,9 @@ wire [6:0] opcode;
 wire [2:0] funct3;
 wire [6:0] funct7;
 
-wire [8:0] pc_plus1;
+wire [10:0] pc_plus4;        // CHANGED
+wire [31:0] pc_u32;          // CHANGED sizing below
+wire [31:0] pc_plus4_u32;    // CHANGED
 
 wire [4:0] rs1_addr;
 wire [4:0] rs2_addr;
@@ -73,7 +73,6 @@ assign rd1_out = rd1;
 wire is_b;
 wire is_jal;
 wire is_jalr;
-wire [31:0] pc_u32;
 wire [31:0] auipc_val;
 
 assign is_lui   = (opcode == 7'b0110111);
@@ -84,17 +83,18 @@ assign is_jal  = (opcode == 7'b1101111);
 assign is_jalr = (opcode == 7'b1100111) && (funct3 == 3'b000);
 
 assign jal_jalr = is_jal | is_jalr | is_lui | is_auipc;
-assign pc_plus1 = pc_in + 1;
 
-assign pc_u32 = {23'd0, pc_in};        // 用当前 PC（word-PC 版本）
+// CHANGED: pc+4 (byte)
+assign pc_plus4     = pc_in + 11'd4;
+assign pc_u32       = {21'd0, pc_in};
+assign pc_plus4_u32 = {21'd0, pc_plus4};
 
-assign auipc_val = pc_u32 + imm;       // imm 对 U 型你已经做了 <<12
+assign auipc_val = pc_u32 + imm;
 
-assign rd2_out = (is_jal | is_jalr) ? {23'd0, pc_plus1} :
+assign rd2_out = (is_jal | is_jalr) ? pc_plus4_u32 :
                  is_auipc ? auipc_val :
                  is_lui   ? imm :
                  rd2;
-
 
 wire eq, lt_s, ge_s, lt_u, ge_u;
 assign eq   = (rd1 == rd2);
@@ -123,24 +123,36 @@ end
 wire jump_valid_int;
 assign jump_valid_int = b_take | is_jal | is_jalr;
 
+// -------------------- Immediate decode --------------------
+// CHANGED: B/J immediates append 1'b0 (RISC-V spec bit0=0)
 always @(*) begin
   case (opcode)
-    7'b0010011: imm = {{20{inst_in[31]}}, inst_in[31:20]};
-    7'b0000011: imm = {{20{inst_in[31]}}, inst_in[31:20]};
-    7'b1100111: imm = {{20{inst_in[31]}}, inst_in[31:20]};
-    7'b1110011: imm = {{20{inst_in[31]}}, inst_in[31:20]};
-    7'b0100011: imm = {{20{inst_in[31]}}, inst_in[31:25], inst_in[11:7]};
-    7'b1100011: imm = {{20{inst_in[31]}}, inst_in[31], inst_in[7], inst_in[30:25], inst_in[11:8]};
-    7'b1101111: imm = {{12{inst_in[31]}}, inst_in[31], inst_in[19:12], inst_in[20], inst_in[30:21]};
-    7'b0110111: imm = {inst_in[31:12], 12'b0};
-    7'b0010111: imm = {inst_in[31:12], 12'b0};
+    7'b0010011: imm = {{20{inst_in[31]}}, inst_in[31:20]}; // I
+    7'b0000011: imm = {{20{inst_in[31]}}, inst_in[31:20]}; // LW
+    7'b1100111: imm = {{20{inst_in[31]}}, inst_in[31:20]}; // JALR
+    7'b1110011: imm = {{20{inst_in[31]}}, inst_in[31:20]}; // CSR
+    7'b0100011: imm = {{20{inst_in[31]}}, inst_in[31:25], inst_in[11:7]}; // S
+    7'b1100011: imm = {{19{inst_in[31]}}, inst_in[31], inst_in[7], inst_in[30:25], inst_in[11:8], 1'b0}; // CHANGED (B)
+    7'b1101111: imm = {{11{inst_in[31]}}, inst_in[31], inst_in[19:12], inst_in[20], inst_in[30:21], 1'b0}; // CHANGED (J)
+    7'b0110111: imm = {inst_in[31:12], 12'b0}; // U
+    7'b0010111: imm = {inst_in[31:12], 12'b0}; // U
     default:    imm = 32'd0;
   endcase
 end
 
-wire [8:0] base9;
-assign base9    = is_jalr ? rd1[8:0] : pc_in;
-assign addr_out = base9 + imm[8:0];
+// -------------------- Branch/J target --------------------
+// CHANGED: use byte PC, full 32-bit add, and force 4-byte alignment for this 32-bit-only core
+wire [31:0] base32;
+wire [31:0] target_raw;
+wire [31:0] target_aligned;
+
+assign base32     = is_jalr ? rd1 : pc_u32;
+assign target_raw = base32 + imm;
+
+// CHANGED: clear low 2 bits so Icache (pc>>2) works for 32-bit-only instructions
+assign target_aligned = target_raw & ~32'd3;
+
+assign addr_out = target_aligned[10:0];
 
 assign ALUsrc = (opcode == 7'b0010011) | (opcode == 7'b0000011) | (opcode == 7'b0100011);
 

@@ -1,27 +1,27 @@
 // ex_stage
 
 module ex_stage (
-	input  wire [31:0] IMM_in,
-	input  wire        wreg_in,
-	input  wire [31:0] rd2_in,
-	input  wire [31:0] rd1_in,
-	input  wire [4:0]  rd_in,
-	input  wire [2:0]  func3_in,
-	input  wire [6:0]  func7_in,
-	input  wire        ALUsrc_in,
-	input  wire        WMM_in,
-	input  wire        RMM_in,
-	input  wire        MOA_in,
-	input  wire        jal_jalr_in,
+  input  wire [31:0] IMM_in,
+  input  wire        wreg_in,
+  input  wire [31:0] rd2_in,
+  input  wire [31:0] rd1_in,
+  input  wire [4:0]  rd_in,
+  input  wire [2:0]  func3_in,
+  input  wire [6:0]  func7_in,
+  input  wire        ALUsrc_in,
+  input  wire        WMM_in,
+  input  wire        RMM_in,
+  input  wire        MOA_in,
+  input  wire        jal_jalr_in,
 
-	output wire [31:0] alu_out,
-	output wire [31:0] rd2_out,
-	output wire        wreg_out,
-	output wire [4:0]  rd_out,
-	output wire        WMM_out,
-	output wire        RMM_out,
-	output wire        MOA_out,
-	output wire        jal_jalr_out
+  output wire [31:0] alu_out,
+  output wire [31:0] rd2_out,
+  output wire        wreg_out,
+  output wire [4:0]  rd_out,
+  output wire        WMM_out,
+  output wire        RMM_out,
+  output wire        MOA_out,
+  output wire        jal_jalr_out
 );
 
 wire [31:0] b_sel;

@@ -2,54 +2,30 @@
 //`include "../include/registers.v"
 
 module pipeline_datapath
-
 (
     input clk,
     input rst
-	
-	/*
-    input  [DATA_WIDTH-1:0]              in_data,
-    input  [CTRL_WIDTH-1:0]              in_ctrl,
-    input                                in_wr,
-    output                               in_rdy,
-
-    output [DATA_WIDTH-1:0]              out_data,
-    output [CTRL_WIDTH-1:0]              out_ctrl,
-    output                               out_wr,
-    input                                out_rdy,
-	*/
-/*
-    input                               reg_req_in,
-    input                               reg_ack_in,
-    input                               reg_rd_wr_L_in,
-    input  [`UDP_REG_ADDR_WIDTH-1:0]    reg_addr_in,
-    input  [`CPCI_NF2_DATA_WIDTH-1:0]   reg_data_in,
-    input  [UDP_REG_SRC_WIDTH-1:0]      reg_src_in,
-
-    output                              reg_req_out,
-    output                              reg_ack_out,
-    output                              reg_rd_wr_L_out,
-    output  [`UDP_REG_ADDR_WIDTH-1:0]   reg_addr_out,
-    output  [`CPCI_NF2_DATA_WIDTH-1:0]  reg_data_out,
-    output  [UDP_REG_SRC_WIDTH-1:0]     reg_src_out
-	*/
 );
 
 wire en_reg;
 assign en_reg = 1'b1;
 
-wire [8:0]  pc_if;
-wire [8:0]  pc_new;
+// -------------------- PC width changed to byte-PC --------------------
+// CHANGED: PC is now BYTE address, so we use 11 bits to cover 0..2044 bytes for 512 words
+wire [10:0] pc_if;        // CHANGED
+wire [10:0] pc_new;       // CHANGED
 wire        flush_in;
 
 wire [31:0] instr_in;
 
-wire [8:0]  pc_id;
+// CHANGED
+wire [10:0] pc_id;
 wire [31:0] instr_id;
 wire        flush_out;
 
 wire [31:0] imm_id;
-wire [8:0]  addr_id;
+// CHANGED
+wire [10:0] addr_id;
 wire        jump_valid_id;
 
 wire        wreg_id;
@@ -101,16 +77,10 @@ wire        wreg_mm;
 wire [4:0]  rd_mm;
 wire        MOA_mm;
 
-wire [31:0] alu_wb_in;
-wire [31:0] mem_wb_in;
-wire        wreg_wb_in;
-wire [4:0]  rd_wb_in;
-wire        MOA_wb_in;
-
 wire [31:0] wb_data_out;
 wire        wb_wreg_out;
 wire [4:0]  wb_rd_out;
-  
+
 wire [31:0] alu_mm_wb;
 wire [31:0] mem_mm_wb;
 wire        wreg_mm_wb;
@@ -120,12 +90,7 @@ wire        MOA_mm_wb;
 assign flush_in      = jump_valid_id;
 assign pc_new        = addr_id;
 
-assign alu_wb_in     = alu_mm_wb;
-assign mem_wb_in     = mem_mm_wb;
-assign wreg_wb_in    = wreg_mm_wb;
-assign rd_wb_in      = rd_mm_wb;
-assign MOA_wb_in     = MOA_mm_wb;
-
+// -------------------- PC module --------------------
 pc pc_inst(
   .clk        (clk),
   .rst        (rst),
@@ -135,14 +100,17 @@ pc pc_inst(
   .pc         (pc_if)
 );
 
+// -------------------- Icache address mapping --------------------
+// CHANGED: Icache is still 512 words, so index = pc_if >> 2
 Icache Imm(
   .clk  (clk),
-  .addr (pc_if),
+  .addr (pc_if[10:2]),   // CHANGED
   .din  (32'b0),
   .dout (instr_in),
   .we   (1'b0)
 );
 
+// -------------------- IF/ID reg --------------------
 if_id_reg if_id_reg_inst (
   .clk      (clk),
   .rst      (rst),
@@ -155,6 +123,7 @@ if_id_reg if_id_reg_inst (
   .wist_out (flush_out)
 );
 
+// -------------------- ID stage --------------------
 id_stage id_stage_inst (
   .clk        (clk),
   .rst        (rst),
@@ -184,6 +153,7 @@ id_stage id_stage_inst (
   .jal_jalr   (jal_jalr_id)
 );
 
+// -------------------- ID/EX reg --------------------
 id_ex_reg id_ex_inst (
   .clk         (clk),
   .rst         (rst),
@@ -216,6 +186,7 @@ id_ex_reg id_ex_inst (
   .jal_jalr_out(jal_jalr_ex)
 );
 
+// -------------------- EX stage --------------------
 ex_stage ex_stage_inst (
   .IMM_in       (IMM_ex),
   .wreg_in      (wreg_ex),
@@ -240,6 +211,7 @@ ex_stage ex_stage_inst (
   .jal_jalr_out (jal_jalr_ex_o)
 );
 
+// -------------------- EX/MM reg --------------------
 ex_mm_reg ex_mm_reg_inst (
   .clk         (clk),
   .rst         (rst),
@@ -264,6 +236,7 @@ ex_mm_reg ex_mm_reg_inst (
   .jal_jalr_out(jal_jalr_mem_in)
 );
 
+// -------------------- MM stage --------------------
 mm_stage mm_stage_inst (
   .clk        (clk),
 
@@ -283,8 +256,7 @@ mm_stage mm_stage_inst (
   .MOA_out    (MOA_mm)
 );
 
-
-
+// -------------------- MM/WB reg --------------------
 mm_wb_reg mm_wb_reg_inst (
   .clk      (clk),
   .rst      (rst),
@@ -303,6 +275,7 @@ mm_wb_reg mm_wb_reg_inst (
   .MOA_out  (MOA_mm_wb)
 );
 
+// -------------------- WB stage --------------------
 wb_stage wb_stage_inst (
   .alu_in      (alu_mm_wb),
   .mem_in      (mem_mm_wb),

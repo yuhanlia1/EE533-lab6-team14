@@ -1,21 +1,21 @@
 // MEM/WB registers
 
 module mm_wb_reg (
-	input  wire        clk,
-	input  wire        rst,
-	input  wire        enable,
+  input  wire        clk,
+  input  wire        rst,
+  input  wire        enable,
 
-	input  wire [31:0] alu_in,
-	input  wire [31:0] mem_in,
-	input  wire        wreg_in,
-	input  wire [4:0]  rd_in,
-	input  wire        MOA_in,
+  input  wire [31:0] alu_in,
+  input  wire [31:0] mem_in,
+  input  wire        wreg_in,
+  input  wire [4:0]  rd_in,
+  input  wire        MOA_in,
 
-	output reg  [31:0] alu_out,
-	output reg  [31:0] mem_out,
-	output reg         wreg_out,
-	output reg  [4:0]  rd_out,
-	output reg         MOA_out
+  output reg  [31:0] alu_out,
+  output reg  [31:0] mem_out,
+  output reg         wreg_out,
+  output reg  [4:0]  rd_out,
+  output reg         MOA_out
 );
 
 always @(posedge clk) begin

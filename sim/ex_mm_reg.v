@@ -1,27 +1,27 @@
 // EX/MEM registers
 
 module ex_mm_reg (
-	input  wire        clk,
-	input  wire        rst,
-	input  wire        enable,
+  input  wire        clk,
+  input  wire        rst,
+  input  wire        enable,
 
-	input  wire [31:0] alu_in,
-	input  wire [31:0] rd2_in,
-	input  wire        wreg_in,
-	input  wire [4:0]  rd_in,
-	input  wire        WMM_in,
-	input  wire        RMM_in,
-	input  wire        MOA_in,
-	input  wire        jal_jalr_in,
+  input  wire [31:0] alu_in,
+  input  wire [31:0] rd2_in,
+  input  wire        wreg_in,
+  input  wire [4:0]  rd_in,
+  input  wire        WMM_in,
+  input  wire        RMM_in,
+  input  wire        MOA_in,
+  input  wire        jal_jalr_in,
 
-	output reg  [31:0] alu_out,
-	output reg  [31:0] rd2_out,
-	output reg         wreg_out,
-	output reg  [4:0]  rd_out,
-	output reg         WMM_out,
-	output reg         RMM_out,
-	output reg         MOA_out,
-	output reg         jal_jalr_out
+  output reg  [31:0] alu_out,
+  output reg  [31:0] rd2_out,
+  output reg         wreg_out,
+  output reg  [4:0]  rd_out,
+  output reg         WMM_out,
+  output reg         RMM_out,
+  output reg         MOA_out,
+  output reg         jal_jalr_out
 );
 
 always @(posedge clk) begin
@@ -43,15 +43,6 @@ always @(posedge clk) begin
     RMM_out      <= RMM_in;
     MOA_out      <= MOA_in;
     jal_jalr_out <= jal_jalr_in;
-  end else begin
-    alu_out      <= alu_out;
-    rd2_out      <= rd2_out;
-    wreg_out     <= wreg_out;
-    rd_out       <= rd_out;
-    WMM_out      <= WMM_out;
-    RMM_out      <= RMM_out;
-    MOA_out      <= MOA_out;
-    jal_jalr_out <= jal_jalr_out;
   end
 end
 
