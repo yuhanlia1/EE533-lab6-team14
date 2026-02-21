@@ -457,19 +457,19 @@ def assemble(src_path, rodata_base=DEFAULT_RODATA_BASE, stack_top=DEFAULT_STACK_
     haz_d2 = sum(1 for h in haz_info if 'dist-2' in h)
 
     print(f"\n{'='*65}")
-    print(f" 汇编成功（RAW 智能 NOP 插入 v2）")
-    print(f"  真实指令数  : {N}")
-    print(f"  插入 NOP 数 : {total_nops}  (旧版固定插 {N*2}，节省 {N*2 - total_nops} 个)")
-    print(f"  总 slots    : {total_slots}  (旧版 {N*3}，减少 {N*3 - total_slots} slots)")
+    print(f" assemble succeed（RAW dependency of NOP insert）")
+    print(f"  real instr  : {N}")
+    print(f"  inserts NOPs : {total_nops}  (compared {N*2}，save {N*2 - total_nops} )")
+    print(f"  total slots    : {total_slots}  (compared {N*3}，decreased {N*3 - total_slots} slots)")
     print(f"  HALT byte PC: {halt_byte_pc}  (slot {halt_byte_pc//4})")
     print(f"  STACK_TOP   : 0x{stack_top:04X} = {stack_top}")
     print(f"  RODATA_BASE : 0x{rodata_base:04X} → Dcache word {rodata_base//4}")
     if rodata_data:
         print(f"  .rodata     : {len(rodata_data)} words → Dcache[{rodata_base//4}..{rodata_base//4+len(rodata_data)-1}]")
-    print(f"\n  RAW 冒险统计:")
-    print(f"    dist-1（+2 NOP）: {haz_d1} 处")
-    print(f"    dist-2（+1 NOP）: {haz_d2} 处")
-    print(f"\n  标签地址:")
+    print(f"\n  RAW hazard counts:")
+    print(f"    dist-1（+2 NOP）: {haz_d1} ")
+    print(f"    dist-2（+1 NOP）: {haz_d2} ")
+    print(f"\n  tag address:")
     for k, v in sorted(labels.items(), key=lambda x: x[1]):
         if v < rodata_base:
             print(f"    {k:25s} byte={v:5d}  slot={v//4:4d}")
