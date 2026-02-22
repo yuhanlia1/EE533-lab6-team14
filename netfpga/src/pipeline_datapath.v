@@ -324,12 +324,14 @@ ex_mm_reg ex_mm_reg_inst (
 mm_stage mm_stage_inst (
   .clk              (clk),
 
-  .alu_in           (alu_mem_in),
-  .rd2_in           (rd2_mem_in),
+  .alu_in_bypass    (alu_ex),			// don't delete: bypass from ex stage
+  .alu_in			(alu_mem_in),
+  .rd2_in_bypass    (rd2_ex_o),			// don't delete: bypass from ex stage
+  .rd2_in		    (rd2_mem_in),
   .wreg_in          (wreg_mem_in),
   .rd_in            (rd_mem_in),
-  .WMM_in           (WMM_mem_in),
-  .RMM_in           (RMM_mem_in),
+  .WMM_in           (WMM_ex_o),			// don't delete: bypass from ex stage
+  .RMM_in           (RMM_ex_o),			// don't delete: bypass from ex stage
   .MOA_in           (MOA_mem_in),
   .jal_jalr_in      (jal_jalr_mem_in),
 
@@ -338,7 +340,7 @@ mm_stage mm_stage_inst (
   .dmem_sw_wdata    (sw_dmem_wdata),
   .dmem_sw_we       (dmem_sw_we),
 
-  .alu_out          (alu_mm),
+  .alu_out          (alu_mm),			
   .mem_out          (mem_mm),
   .wreg_out         (wreg_mm),
   .rd_out           (rd_mm),
@@ -350,7 +352,7 @@ mm_wb_reg mm_wb_reg_inst (
   .rst      (reset),
   .enable   (en_reg),
 
-  .alu_in   (alu_mm),
+  .alu_in   (alu_mm),				
   .mem_in   (mem_mm),
   .wreg_in  (wreg_mm),
   .rd_in    (rd_mm),

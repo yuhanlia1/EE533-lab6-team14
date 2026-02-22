@@ -3,8 +3,11 @@
 module mm_stage (
   input  wire        clk,
 
+  input  wire [31:0] alu_in_bypass,
   input  wire [31:0] alu_in,
+  input  wire [31:0] rd2_in_bypass,
   input  wire [31:0] rd2_in,
+  
   input  wire        wreg_in,
   input  wire [4:0]  rd_in,
   input  wire        WMM_in,
@@ -17,7 +20,7 @@ module mm_stage (
   input  wire [31:0] dmem_sw_wdata,
   input  wire        dmem_sw_we,
 
-  output wire [31:0] alu_out,
+  output wire  [31:0] alu_out,	
   output wire [31:0] mem_out,
   output wire        wreg_out,
   output wire [4:0]  rd_out,
@@ -31,16 +34,17 @@ wire ena_final;
 wire enb_final;
 wire web_final;
 
-assign addr_cpu   = alu_in[10:2];
+assign addr_cpu   = alu_in_bypass[10:2];
 assign addr_final = dmem_interact_en ? dmem_sw_addr : addr_cpu;
 
-assign dinb_final = dmem_interact_en ? dmem_sw_wdata : rd2_in;
+assign dinb_final = dmem_interact_en ? dmem_sw_wdata : rd2_in_bypass;
 
 assign ena_final  = dmem_interact_en ? (~dmem_sw_we) : RMM_in;
 assign enb_final  = dmem_interact_en ? dmem_sw_we    : WMM_in;
 assign web_final  = enb_final;
 
 assign alu_out  = jal_jalr_in ? rd2_in : alu_in;
+
 assign wreg_out = wreg_in;
 assign rd_out   = rd_in;
 assign MOA_out  = MOA_in;

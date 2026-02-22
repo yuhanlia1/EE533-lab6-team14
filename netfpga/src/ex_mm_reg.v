@@ -14,12 +14,12 @@ module ex_mm_reg (
   input  wire        MOA_in,
   input  wire        jal_jalr_in,
 
-  output reg  [31:0] alu_out,
-  output reg  [31:0] rd2_out,
+  output reg  [31:0] alu_out,		// debug
+  output reg  [31:0] rd2_out,		// debug
   output reg         wreg_out,
   output reg  [4:0]  rd_out,
-  output reg         WMM_out,
-  output reg         RMM_out,
+  output reg         WMM_out,		// debug
+  output reg         RMM_out,		// debug
   output reg         MOA_out,
   output reg         jal_jalr_out
 );
