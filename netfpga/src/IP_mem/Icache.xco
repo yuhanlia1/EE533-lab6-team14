@@ -1,7 +1,7 @@
 ##############################################################
 #
 # Xilinx Core Generator version K.31
-# Date: Sat Feb 21 14:18:51 2026
+# Date: Sun Feb 22 03:51:27 2026
 #
 ##############################################################
 #
@@ -37,7 +37,7 @@ SELECT Single_Port_Block_Memory family Xilinx,_Inc. 6.2
 # BEGIN Parameters
 CSET active_clock_edge=Rising_Edge_Triggered
 CSET additional_output_pipe_stages=0
-CSET coefficient_file=C:\EE533\lab6\IP\icache.coe
+CSET coefficient_file=C:\EE533\lab6\IP1\Icache.coe
 CSET component_name=Icache
 CSET depth=512
 CSET disable_warning_messages=true
@@ -60,5 +60,5 @@ CSET write_enable_polarity=Active_High
 CSET write_mode=Read_After_Write
 # END Parameters
 GENERATE
-# CRC: 97a3793f
+# CRC: e56e447c
 

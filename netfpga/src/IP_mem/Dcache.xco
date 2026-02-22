@@ -1,7 +1,7 @@
 ##############################################################
 #
 # Xilinx Core Generator version K.31
-# Date: Sat Feb 21 14:17:54 2026
+# Date: Sun Feb 22 03:50:49 2026
 #
 ##############################################################
 #
@@ -35,7 +35,7 @@ SET vhdlsim = True
 SELECT Dual_Port_Block_Memory family Xilinx,_Inc. 6.3
 # END Select
 # BEGIN Parameters
-CSET coefficient_file=C:\EE533\lab6\IP\dcache.coe
+CSET coefficient_file=C:\EE533\lab6\IP1\dcache.coe
 CSET component_name=Dcache
 CSET configuration_port_a=Read_Only
 CSET configuration_port_b=Write_Only
@@ -72,5 +72,5 @@ CSET write_mode_port_a=Read_After_Write
 CSET write_mode_port_b=Read_After_Write
 # END Parameters
 GENERATE
-# CRC: ca8a324c
+# CRC:  29e5755
 
