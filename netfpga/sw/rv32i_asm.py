@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
 """
-rv32i_asm.py  —  RV32I Assembler for Early-Branch Pipeline  (v2 with RAW NOP insertion)
-=========================================================================================
-【NOP 插入策略 v2】
-  旧版：每条指令后固定插入 2 个 NOP（3 slot/指令）
-  新版：仅在 RAW 数据冒险时插入必要数量的 NOP
+rv32i_asm.py  —  RV32I Assembler for Early-Branch Pipeline
+=============================================================
+每条真实指令后固定插入 2 个 NOP（3 slot/指令），适配无前递 5 级流水线。
 
-  流水线（5级，无前递，early-branch in ID）：
-    IF → ID → EX → MEM → WB
-    寄存器在 ID 阶段读取，在 WB 阶段末写入。
-    若指令 i 产生结果，指令 j 需要该结果，则要求 slot 间距 ≥ 3：
-      dist-1（i 与 i+1 有 RAW）: nops_after[i] ≥ 2
-      dist-2（i 与 i+2 有 RAW）: nops_after[i] + nops_after[i+1] ≥ 1
-      dist-3+：无需 NOP
+【内存映射约定】
+  Icache : byte addr 0 起，word index = byte[10:2]，存放指令
+  Dcache : byte addr 0 起，word index = byte[10:2]，存放数据
+  .text   → Icache（自动 NOP padding，3 slot/指令）
+  .rodata → Dcache 预加载，起始字节地址 = RODATA_BASE（默认 0x400）
+  stack   → Dcache，sp 初始值 = STACK_TOP（默认 0x300，向低地址增长）
 
 【命令行】
   python rv32i_asm.py  source.asm
@@ -20,20 +17,14 @@ rv32i_asm.py  —  RV32I Assembler for Early-Branch Pipeline  (v2 with RAW NOP i
   python rv32i_asm.py  source.asm  --imem imem.hex  --dmem dmem.hex
 
 【输出文件】
-  <stem>.listing  — 地址/hex/汇编对照表，含冒险原因注释
+  <stem>.listing  — 地址/hex/汇编对照表
   <stem>.vh       — Verilog task：load_icache + load_dcache
-  imem.hex        — 指令内存 hex（供 bash 脚本 pip_reg 加载）
-  dmem.hex        — 数据内存 hex（供 bash 脚本 pip_reg 加载）
+  imem.hex        — 指令内存 hex（供 pip_reg 脚本加载）
+  dmem.hex        — 数据内存 hex（供 pip_reg 脚本加载）
 
-【imem.hex 格式】
-  每行：<word_addr(十进制)> 0x<32bit_word>  # 汇编注释
-  bash 脚本调用：load_mem_file imem imem.hex 0
-  （使用显式地址格式，起始 word addr = 0）
-
-【dmem.hex 格式】
+【imem.hex / dmem.hex 格式】
   每行：0x<32bit_word>  # 注释
-  bash 脚本调用：load_mem_file dmem dmem.hex $DMEM_BASE_WORD
-  （顺序格式，bash 负责从 DMEM_BASE_WORD 开始自动递增地址）
+  顺序列出（无地址字段），pip_reg 从指定 base word 开始自动递增写入。
 """
 
 import re, sys, os, argparse
@@ -43,9 +34,11 @@ import re, sys, os, argparse
 # ─────────────────────────────────────────────────────────────────────────────
 DEFAULT_RODATA_BASE = 0x400
 DEFAULT_STACK_TOP   = 0x300
+SLOTS_PER_INST      = 3          # 每条真实指令占的 word slot（1 指令 + 2 NOP）
 BYTES_PER_SLOT      = 4
-NOP_WORD            = 0x00000013   # addi x0,x0,0
-HALT_WORD           = 0x00000063   # beq x0,x0,0
+BYTES_PER_INST      = SLOTS_PER_INST * BYTES_PER_SLOT   # = 12
+NOP_WORD            = 0x00000013  # addi x0,x0,0
+HALT_WORD           = 0x00000063  # beq x0,x0,0（自跳转 HALT）
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  寄存器映射
@@ -61,15 +54,6 @@ REGS.update({
     "t3":28,  "t4":29, "t5":30, "t6":31,
 })
 
-ABI_NAME = {
-    0:"zero",1:"ra",2:"sp",3:"gp",4:"tp",
-    5:"t0",6:"t1",7:"t2",8:"s0",9:"s1",
-    10:"a0",11:"a1",12:"a2",13:"a3",14:"a4",15:"a5",16:"a6",17:"a7",
-    18:"s2",19:"s3",20:"s4",21:"s5",22:"s6",23:"s7",
-    24:"s8",25:"s9",26:"s10",27:"s11",
-    28:"t3",29:"t4",30:"t5",31:"t6",
-}
-
 # ─────────────────────────────────────────────────────────────────────────────
 #  指令表
 # ─────────────────────────────────────────────────────────────────────────────
@@ -81,17 +65,17 @@ INST = {
     "or":   ("R",0x33,6,0x00), "and":  ("R",0x33,7,0x00),
     "addi": ("I",0x13,0), "slti": ("I",0x13,2), "sltiu":("I",0x13,3),
     "xori": ("I",0x13,4), "ori":  ("I",0x13,6), "andi": ("I",0x13,7),
-    "slli": ("IS",0x13,1,0x00),"srli": ("IS",0x13,5,0x00),"srai": ("IS",0x13,5,0x20),
-    "lb":("I",0x03,0),"lh":("I",0x03,1),"lw":("I",0x03,2),
-    "lbu":("I",0x03,4),"lhu":("I",0x03,5),
-    "sb":("S",0x23,0),"sh":("S",0x23,1),"sw":("S",0x23,2),
-    "beq":("B",0x63,0),"bne":("B",0x63,1),
-    "blt":("B",0x63,4),"bge":("B",0x63,5),
-    "bltu":("B",0x63,6),"bgeu":("B",0x63,7),
-    "lui":("U",0x37),"auipc":("U",0x17),
+    "slli": ("IS",0x13,1,0x00), "srli": ("IS",0x13,5,0x00), "srai": ("IS",0x13,5,0x20),
+    "lb":("I",0x03,0), "lh":("I",0x03,1), "lw":("I",0x03,2),
+    "lbu":("I",0x03,4), "lhu":("I",0x03,5),
+    "sb":("S",0x23,0), "sh":("S",0x23,1), "sw":("S",0x23,2),
+    "beq":("B",0x63,0), "bne":("B",0x63,1),
+    "blt":("B",0x63,4), "bge":("B",0x63,5),
+    "bltu":("B",0x63,6), "bgeu":("B",0x63,7),
+    "lui":("U",0x37), "auipc":("U",0x17),
     "jal":("J",0x6F),
     "jalr":("I",0x67,0),
-    "ecall":("SYS",0x73,0),"ebreak":("SYS",0x73,1),
+    "ecall":("SYS",0x73,0), "ebreak":("SYS",0x73,1),
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -116,7 +100,6 @@ def lo12(addr):
     return v - 0x1000 if v >= 0x800 else v
 
 def split_args(s):
-    """把 'rd, rs1, imm' 或 'rd, imm(rs1)' 标准化拆开"""
     s = re.sub(r'(-?[\w.]+)\((\w+)\)', r'\1,\2', s)
     parts = re.split(r'[\s,]+', s.strip())
     return [p for p in parts if p]
@@ -136,104 +119,6 @@ def resolve_hi_lo(arg, labels):
     return parse_int(arg)
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  RAW 冒险分析辅助函数
-# ─────────────────────────────────────────────────────────────────────────────
-def get_dest(mn, args):
-    """
-    返回目标寄存器编号（1-31），若无写目标或写 x0 则返回 None。
-    接受已展开的指令 (mn, args)。
-    """
-    if mn == '_HALT': return None
-    tok = split_args(args) if args else []
-    if not tok or mn not in INST: return None
-    fmt = INST[mn][0]
-    # R, I, IS, U, J 类型有 rd 字段（第一个操作数）
-    if fmt in ('R', 'I', 'IS', 'U', 'J'):
-        rd = REGS.get(tok[0].strip(), 0)
-        return rd if rd != 0 else None
-    # B, S, SYS 无写目标
-    return None
-
-def get_sources(mn, args):
-    """
-    返回源寄存器编号集合（仅非零寄存器）。
-    接受已展开的指令 (mn, args)。
-    """
-    if mn == '_HALT': return set()
-    tok = split_args(args) if args else []
-    if not tok or mn not in INST: return set()
-    fmt = INST[mn][0]
-    srcs = set()
-
-    def add(r):
-        n = REGS.get(r.strip(), 0)
-        if n: srcs.add(n)
-
-    if fmt == 'R':           # rd, rs1, rs2
-        if len(tok) >= 3: add(tok[1]); add(tok[2])
-    elif fmt == 'I':
-        # load/jalr 格式：rd, imm, rs1（split_args 已把 imm(rs) 展开）
-        if mn in ('lw','lh','lb','lbu','lhu','jalr'):
-            if len(tok) >= 3: add(tok[2])
-        else:                # rd, rs1, imm
-            if len(tok) >= 2: add(tok[1])
-    elif fmt == 'IS':        # rd, rs1, shamt
-        if len(tok) >= 2: add(tok[1])
-    elif fmt == 'S':         # rs2, imm, rs1
-        if len(tok) >= 3: add(tok[0]); add(tok[2])
-    elif fmt == 'B':         # rs1, rs2, label
-        if len(tok) >= 2: add(tok[0]); add(tok[1])
-    # U (lui/auipc) 和 J (jal) 无源寄存器
-    return srcs
-
-def compute_nops(insts):
-    """
-    insts: list of (emn, eargs, orig_mn, orig_args)
-
-    5级流水线，无前递，ID 阶段读寄存器，WB 末写回。
-    slot 间距 d = s_j - s_i，要求 d ≥ 3。
-
-    dist-1: s_{i+1} - s_i = 1 + nops[i]           → nops[i] ≥ 2
-    dist-2: s_{i+2} - s_i = 2 + nops[i] + nops[i+1] → nops[i]+nops[i+1] ≥ 1
-    dist-3+: 总间距 ≥ 3，安全，无需 NOP
-
-    返回: (nops_after, haz_info)
-      nops_after[i] : 指令 i 后插入的 NOP 数
-      haz_info[i]   : 冒险说明字符串（无冒险则为空）
-    """
-    N = len(insts)
-    nops = [0] * N
-    haz  = [''] * N
-
-    # Pass 1：处理 dist-1 依赖（需要 2 个 NOP）
-    for i in range(N - 1):
-        rd = get_dest(insts[i][0], insts[i][1])
-        if rd is None: continue
-        if rd in get_sources(insts[i+1][0], insts[i+1][1]):
-            if nops[i] < 2:
-                nops[i] = 2
-                rn = ABI_NAME.get(rd, f"x{rd}")
-                haz[i] = f"RAW {rn} (dist-1, +2 NOP)"
-
-    # Pass 2：处理 dist-2 依赖（需要 nops[i]+nops[i+1] ≥ 1）
-    # Pass 1 已完成，nops[i+1] 的 dist-1 值已经确定，可以参考
-    for i in range(N - 2):
-        rd = get_dest(insts[i][0], insts[i][1])
-        if rd is None: continue
-        if rd in get_sources(insts[i+2][0], insts[i+2][1]):
-            if nops[i] + nops[i+1] < 1:
-                nops[i] = 1
-                rn = ABI_NAME.get(rd, f"x{rd}")
-                if not haz[i]:
-                    haz[i] = f"RAW {rn} (dist-2, +1 NOP)"
-
-    # 最后一条指令（HALT 自跳转）后不需要 NOP
-    nops[N - 1] = 0
-    haz[N - 1]  = ''
-
-    return nops, haz
-
-# ─────────────────────────────────────────────────────────────────────────────
 #  伪指令展开
 # ─────────────────────────────────────────────────────────────────────────────
 def expand_pseudo(mn, args):
@@ -247,7 +132,7 @@ def expand_pseudo(mn, args):
         if -2048 <= imm < 2048:
             return [("addi", f"{rd_},x0,{imm}")]
         h = hi20(imm); l = lo12(imm)
-        return [("lui",  f"{rd_},{h}"), ("addi", f"{rd_},{rd_},{l}")]
+        return [("lui", f"{rd_},{h}"), ("addi", f"{rd_},{rd_},{l}")]
 
     if mn == "mv":    return [("addi", f"{tok[0]},{tok[1]},0")]
     if mn == "j":     return [("jal",  f"x0,{tok[0]}")]
@@ -340,11 +225,13 @@ def should_skip(line):
 # ─────────────────────────────────────────────────────────────────────────────
 #  主汇编流程
 # ─────────────────────────────────────────────────────────────────────────────
-def assemble(src_path, rodata_base=DEFAULT_RODATA_BASE, stack_top=DEFAULT_STACK_TOP,
-             imem_path=None, dmem_path=None):
+def assemble(src_path,
+             rodata_base=DEFAULT_RODATA_BASE,
+             stack_top=DEFAULT_STACK_TOP,
+             imem_path="imem.hex",
+             dmem_path="dmem.hex"):
+
     stem = os.path.splitext(src_path)[0]
-    if imem_path is None: imem_path = "imem.hex"
-    if dmem_path is None: dmem_path = "dmem.hex"
 
     # ── 读取 & 预处理 ─────────────────────────────────────────────────────────
     with open(src_path, encoding="utf-8", errors="replace") as f:
@@ -356,9 +243,9 @@ def assemble(src_path, rodata_base=DEFAULT_RODATA_BASE, stack_top=DEFAULT_STACK_
 
     # ── 分段收集 ──────────────────────────────────────────────────────────────
     section       = "text"
-    text_raw      = []    # ('LABEL', name) | ('CODE', line_str)
-    rodata_data   = []    # int word values
-    rodata_labels = {}    # label → byte offset within rodata section
+    text_raw      = []
+    rodata_data   = []
+    rodata_labels = {}
     rodata_pc     = 0
 
     for line in lines:
@@ -377,7 +264,8 @@ def assemble(src_path, rodata_base=DEFAULT_RODATA_BASE, stack_top=DEFAULT_STACK_
                 rodata_labels[lbl] = rodata_pc
             else:
                 text_raw.append(('LABEL', lbl))
-            if rest: text_raw.append(('CODE', rest))
+            if rest:
+                text_raw.append(('CODE', rest))
             continue
 
         if lo.startswith('.word') and section == "rodata":
@@ -399,139 +287,97 @@ def assemble(src_path, rodata_base=DEFAULT_RODATA_BASE, stack_top=DEFAULT_STACK_
             startup = [('CODE', f"lui sp,{h}"), ('CODE', f"addi sp,sp,{l}")]
     text_raw = startup + text_raw
 
-    # ─────────────────────────────────────────────────────────────────────────
-    #  Pass 1：展开伪指令，收集指令列表
-    #          标签记录为【指令序号】，不是字节地址（字节地址要等 NOP 计算后才知道）
-    # ─────────────────────────────────────────────────────────────────────────
-    instructions  = []    # (emn, eargs, orig_mn, orig_args)
-    labels_by_idx = {}    # label_name → instruction index
+    # ── Pass 1：展开伪指令，分配字节 PC，收集标签 ────────────────────────────
+    labels = {}
+    for lbl, offset in rodata_labels.items():
+        labels[lbl] = rodata_base + offset
+
+    instructions = []   # (byte_pc, emn, eargs, orig_mn, orig_args)
+    inst_idx = 0
 
     for item_type, item_val in text_raw:
         if item_type == 'LABEL':
-            labels_by_idx[item_val] = len(instructions)
+            labels[item_val] = inst_idx * BYTES_PER_INST
             continue
-        line = item_val
-        m = re.match(r'([\w.]+)(.*)', line)
+        m = re.match(r'([\w.]+)(.*)', item_val)
         if not m: continue
         mn   = m.group(1).strip().lower()
         args = m.group(2).strip().lstrip(',').strip()
         for (emn, eargs) in expand_pseudo(mn, args):
-            instructions.append((emn, eargs, mn, args))
+            byte_pc = inst_idx * BYTES_PER_INST
+            instructions.append((byte_pc, emn, eargs, mn, args))
+            inst_idx += 1
 
-    N = len(instructions)
-    if N == 0:
+    total_insts = len(instructions)
+    if total_insts == 0:
         print("[WARN] 没有找到任何指令"); return {}
 
-    # ─────────────────────────────────────────────────────────────────────────
-    #  RAW 冒险分析 → 每条指令后需要插入的 NOP 数
-    # ─────────────────────────────────────────────────────────────────────────
-    nops_after, haz_info = compute_nops(instructions)
+    total_slots  = total_insts * SLOTS_PER_INST
+    halt_byte_pc = (total_insts - 1) * BYTES_PER_INST
 
-    # ─────────────────────────────────────────────────────────────────────────
-    #  计算各指令的字节 PC（按实际 NOP 数累加）
-    # ─────────────────────────────────────────────────────────────────────────
-    byte_pcs = []
-    pc = 0
-    for i in range(N):
-        byte_pcs.append(pc)
-        pc += BYTES_PER_SLOT * (1 + nops_after[i])
-    total_bytes = pc
-    total_slots = total_bytes // BYTES_PER_SLOT
-    halt_byte_pc = byte_pcs[N - 1]
-
-    # ─────────────────────────────────────────────────────────────────────────
-    #  构建最终标签字节地址表
-    # ─────────────────────────────────────────────────────────────────────────
-    labels = {}
-    for lbl, offset in rodata_labels.items():
-        labels[lbl] = rodata_base + offset
-    for lbl, idx in labels_by_idx.items():
-        labels[lbl] = byte_pcs[idx] if idx < N else total_bytes
-
-    # ─────────────────────────────────────────────────────────────────────────
-    #  Pass 2：编码（标签地址已经正确）
-    # ─────────────────────────────────────────────────────────────────────────
+    # ── Pass 2：编码 ──────────────────────────────────────────────────────────
     encoded = []
-    for i, (emn, eargs, orig_mn, orig_args) in enumerate(instructions):
-        bpc      = byte_pcs[i]
-        slot_idx = bpc // BYTES_PER_SLOT
+    for (byte_pc, emn, eargs, orig_mn, orig_args) in instructions:
+        slot_idx = byte_pc // BYTES_PER_SLOT
         try:
-            word = encode_one(emn, eargs, bpc, labels)
+            word = encode_one(emn, eargs, byte_pc, labels)
         except Exception as e:
             raise RuntimeError(
-                f"\n[编码错误] byte_pc={bpc}  {orig_mn} {orig_args}\n"
-                f"  展开为: {emn} {eargs}\n  {e}"
-            )
-        encoded.append((bpc, slot_idx, word, orig_mn, orig_args,
-                         emn, eargs, nops_after[i], haz_info[i]))
+                f"\n[编码错误] byte_pc={byte_pc}  {orig_mn} {orig_args}\n"
+                f"  展开为: {emn} {eargs}\n  {e}")
+        encoded.append((byte_pc, slot_idx, word, orig_mn, orig_args, emn, eargs))
 
-    # ─────────────────────────────────────────────────────────────────────────
-    #  统计 & 打印
-    # ─────────────────────────────────────────────────────────────────────────
-    total_nops = sum(nops_after)
-    haz_d1 = sum(1 for h in haz_info if 'dist-1' in h)
-    haz_d2 = sum(1 for h in haz_info if 'dist-2' in h)
-
-    print(f"\n{'='*65}")
-    print(f" 汇编成功（RAW 智能 NOP 插入 v2）")
-    print(f"  真实指令数  : {N}")
-    print(f"  插入 NOP 数 : {total_nops}  (旧版固定插 {N*2}，节省 {N*2 - total_nops} 个)")
-    print(f"  总 slots    : {total_slots}  (旧版 {N*3}，减少 {N*3 - total_slots} slots)")
+    # ── 打印汇总 ──────────────────────────────────────────────────────────────
+    print(f"\n{'='*60}")
+    print(f" 汇编成功（固定 2 NOP / 指令）")
+    print(f"  真实指令数  : {total_insts}")
+    print(f"  总 slots    : {total_slots}")
     print(f"  HALT byte PC: {halt_byte_pc}  (slot {halt_byte_pc//4})")
     print(f"  STACK_TOP   : 0x{stack_top:04X} = {stack_top}")
     print(f"  RODATA_BASE : 0x{rodata_base:04X} → Dcache word {rodata_base//4}")
     if rodata_data:
-        print(f"  .rodata     : {len(rodata_data)} words → Dcache[{rodata_base//4}..{rodata_base//4+len(rodata_data)-1}]")
-    print(f"\n  RAW 冒险统计:")
-    print(f"    dist-1（+2 NOP）: {haz_d1} 处")
-    print(f"    dist-2（+1 NOP）: {haz_d2} 处")
+        print(f"  .rodata     : {len(rodata_data)} words → "
+              f"Dcache[{rodata_base//4}..{rodata_base//4+len(rodata_data)-1}]")
     print(f"\n  标签地址:")
     for k, v in sorted(labels.items(), key=lambda x: x[1]):
         if v < rodata_base:
             print(f"    {k:25s} byte={v:5d}  slot={v//4:4d}")
         else:
             print(f"    {k:25s} byte=0x{v:04X}  Dcache word {v//4}")
-    print(f"{'='*65}\n")
+    print(f"{'='*60}\n")
 
-    # ─────────────────────────────────────────────────────────────────────────
-    #  生成 Listing
-    # ─────────────────────────────────────────────────────────────────────────
+    # ── slot → 标签名映射（用于 listing / vh 注释）──────────────────────────
     slot2lbl = {}
-    for lbl, bpc_ in labels.items():
-        if bpc_ < rodata_base:
-            slot2lbl.setdefault(bpc_ // BYTES_PER_SLOT, []).append(lbl)
+    for lbl, bpc in labels.items():
+        if bpc < rodata_base:
+            slot2lbl.setdefault(bpc // BYTES_PER_SLOT, []).append(lbl)
 
+    # ── 生成 Listing ──────────────────────────────────────────────────────────
     with open(stem + ".listing", "w", encoding="utf-8") as lf:
         lf.write(f"RV32I Listing — {os.path.basename(src_path)}\n")
         lf.write(f"  RODATA_BASE=0x{rodata_base:04X}  STACK_TOP=0x{stack_top:04X}\n")
-        lf.write(f"  {N} insts  {total_nops} NOPs  {total_slots} slots  "
-                 f"HALT byte PC={halt_byte_pc}\n")
-        lf.write(f"  dist-1 hazards={haz_d1}(+2NOP)  dist-2 hazards={haz_d2}(+1NOP)\n")
-        lf.write("─" * 82 + "\n")
-        lf.write(f"{'BytePC':>7} {'Slot':>5}  {'Hex':>10}  {'Assembly':<36} Hazard\n")
-        lf.write("─" * 82 + "\n")
-
-        for (bpc, slot_idx, word, orig_mn, orig_args,
-             emn, eargs, n_nop, haz) in encoded:
+        lf.write(f"  {total_insts} insts  {total_slots} slots  HALT byte PC={halt_byte_pc}\n")
+        lf.write("─"*72 + "\n")
+        lf.write(f"{'BytePC':>7} {'Slot':>5}  {'Hex':>10}  Assembly\n")
+        lf.write("─"*72 + "\n")
+        for (byte_pc, slot_idx, word, orig_mn, orig_args, emn, eargs) in encoded:
             for lbl in slot2lbl.get(slot_idx, []):
                 lf.write(f"{'':>7} {'':>5}  {'':>10}  <{lbl}>:\n")
-            asm_str = f"{orig_mn} {orig_args}".strip()
-            lf.write(f"{bpc:7d} {slot_idx:5d}  0x{word:08X}  {asm_str:<36} {haz}\n")
-            for k in range(n_nop):
-                lf.write(f"{'':>7} {slot_idx+1+k:5d}  0x{NOP_WORD:08X}  (NOP)\n")
+            asm_str  = f"{orig_mn} {orig_args}".strip()
+            real_str = f"{emn} {eargs}".strip()
+            expand   = f"  [{real_str}]" if real_str != asm_str else ""
+            lf.write(f"{byte_pc:7d} {slot_idx:5d}  0x{word:08X}  {asm_str}{expand}\n")
+            for k in range(1, SLOTS_PER_INST):
+                lf.write(f"{'':>7} {slot_idx+k:5d}  0x{NOP_WORD:08X}  (NOP)\n")
+        lf.write("─"*72 + "\n")
+        lf.write(f"Total slots: {total_slots}\n")
 
-        lf.write("─" * 82 + "\n")
-        lf.write(f"Total: {N} instructions, {total_slots} slots"
-                 f"  (fixed-2-NOP would be {N*3} slots, saved {N*3-total_slots})\n")
-
-    # ─────────────────────────────────────────────────────────────────────────
-    #  生成 Verilog .vh
-    # ─────────────────────────────────────────────────────────────────────────
+    # ── 生成 Verilog .vh ──────────────────────────────────────────────────────
     with open(stem + ".vh", "w", encoding="utf-8") as vf:
-        vf.write(f"// {'='*60}\n")
-        vf.write(f"// Auto-generated by rv32i_asm.py (RAW-aware NOP insertion)\n")
+        vf.write(f"// {'='*58}\n")
+        vf.write(f"// Auto-generated by rv32i_asm.py\n")
         vf.write(f"// Source : {os.path.basename(src_path)}\n")
-        vf.write(f"// Insts  : {N}   NOPs inserted: {total_nops}   Slots: {total_slots}\n")
+        vf.write(f"// Insts  : {total_insts}   Slots: {total_slots}\n")
         vf.write(f"// HALT byte PC = {halt_byte_pc}  (slot {halt_byte_pc//4})\n")
         vf.write(f"// STACK_TOP    = 0x{stack_top:04X} = {stack_top}\n")
         vf.write(f"// RODATA_BASE  = 0x{rodata_base:04X} → Dcache word {rodata_base//4}\n")
@@ -540,114 +386,75 @@ def assemble(src_path, rodata_base=DEFAULT_RODATA_BASE, stack_top=DEFAULT_STACK_
             arr_est = s0_est - 44
             vf.write(f"// Array result (bubble sort): arr_base≈0x{arr_est:04X}"
                      f" → Dcache word {arr_est//4}..{arr_est//4+len(rodata_data)-1}\n")
-        vf.write(f"// {'='*60}\n\n")
+        vf.write(f"// {'='*58}\n\n")
 
-        # ── load_icache ───────────────────────────────────────────────────────
-        vf.write("// ─────────────────────────────────────────────\n")
-        vf.write("// Task: load_icache\n")
-        vf.write("// ─────────────────────────────────────────────\n")
         vf.write("task load_icache;\n")
         vf.write("integer _ki;\n")
         vf.write("begin\n")
         vf.write("    for (_ki = 0; _ki < 512; _ki = _ki + 1)\n")
         vf.write("        dut.Imm.mem[_ki] = 32'h00000013; // NOP\n\n")
-
-        for (bpc, slot_idx, word, orig_mn, orig_args,
-             emn, eargs, n_nop, haz) in encoded:
+        for (byte_pc, slot_idx, word, orig_mn, orig_args, emn, eargs) in encoded:
             lbls = slot2lbl.get(slot_idx, [])
             if lbls:
-                vf.write(f"    // ── {'  '.join('<'+l+'>' for l in lbls)}"
-                         f" (byte {bpc}) ──\n")
+                vf.write(f"    // ── {'  '.join('<'+l+'>' for l in lbls)} (byte {byte_pc}) ──\n")
             asm_str = f"{orig_mn} {orig_args}".strip()
-            haz_com = f"  // {haz}" if haz else ""
-            vf.write(f"    dut.Imm.mem[{slot_idx:3d}] = 32'h{word:08X};"
-                     f" // {asm_str}{haz_com}\n")
-            for k in range(n_nop):
-                vf.write(f"    dut.Imm.mem[{slot_idx+1+k:3d}] = 32'h{NOP_WORD:08X}; // NOP\n")
-
-        vf.write(f"\n    $display(\"[ICACHE] {N} insts, {total_slots} slots,"
+            vf.write(f"    dut.Imm.mem[{slot_idx:3d}] = 32'h{word:08X}; // {asm_str}\n")
+            for k in range(1, SLOTS_PER_INST):
+                vf.write(f"    dut.Imm.mem[{slot_idx+k:3d}] = 32'h{NOP_WORD:08X}; // NOP\n")
+        vf.write(f"\n    $display(\"[ICACHE] {total_insts} insts, {total_slots} slots,"
                  f" HALT byte PC={halt_byte_pc}\");\n")
         vf.write("end\nendtask\n\n")
 
-        # ── load_dcache ───────────────────────────────────────────────────────
-        vf.write("// ─────────────────────────────────────────────\n")
-        vf.write("// Task: load_dcache\n")
-        if rodata_data:
-            vf.write(f"// .rodata → Dcache word {rodata_base//4}"
-                     f"..{rodata_base//4+len(rodata_data)-1}\n")
-        vf.write("// ★ 修改测试数据只需改此 task ★\n")
-        vf.write("// ─────────────────────────────────────────────\n")
         vf.write("task load_dcache;\n")
         vf.write("integer _kd;\n")
         vf.write("begin\n")
         vf.write("    for (_kd = 0; _kd < 512; _kd = _kd + 1)\n")
         vf.write("        dut.mm_stage_inst.Dmm.mem[_kd] = 32'h00000000;\n\n")
-
         if rodata_data:
-            vf.write(f"    // .rodata (.LC0 等) → Dcache word {rodata_base//4} 起\n")
+            vf.write(f"    // .rodata → Dcache word {rodata_base//4} 起\n")
             vf.write(f"    // ★ 修改测试输入请改这里 ★\n")
             bw = rodata_base // 4
             for idx, val in enumerate(rodata_data):
                 sv = val if val < 0x80000000 else val - 0x100000000
                 vf.write(f"    dut.mm_stage_inst.Dmm.mem[{bw+idx}]"
                          f" = 32'h{val & 0xFFFFFFFF:08X}; // {sv}\n")
-            vf.write(f"\n    // ★ 输入快照（用于完整性验证）★\n")
-            vf.write(f"    for (i = 0; i < ARR_LEN; i = i + 1)\n")
-            vf.write(f"        input_snapshot[i] = dut.mm_stage_inst.Dmm.mem[{bw} + i];\n")
         else:
             vf.write("    // 无 .rodata；如需预设数据请在此添加\n")
-
         vf.write(f"\n    $display(\"[DCACHE] 数据预加载完成\");\n")
         vf.write("end\nendtask\n")
 
     print(f"[输出] {stem}.listing")
     print(f"[输出] {stem}.vh")
 
-    # ─────────────────────────────────────────────────────────────────────────
-    #  生成 imem.hex
-    #
-    #  bash norm_hex 规则：无 0x 前缀的数值被当作十六进制！
-    #  例如 norm_hex("175") → 0x175 = 373（不是十进制 175）
-    #  因此地址字段必须带 0x 前缀，或使用无地址的顺序格式。
-    #
-    #  这里使用【无地址顺序格式】：
-    #    每行一个 0x<WORD>，bash 从 base_word=0 开始自动递增地址。
-    #  bash 调用：load_mem_file imem imem.hex 0
-    # ─────────────────────────────────────────────────────────────────────────
+    # ── 生成 imem.hex ─────────────────────────────────────────────────────────
+    # 格式：每行 0x<WORD>，顺序列出，pip_reg 从 word 0 起自动递增地址
     with open(imem_path, "w", encoding="utf-8") as hf:
         hf.write(f"# imem.hex — generated from {os.path.basename(src_path)}\n")
-        hf.write(f"# {N} insts  {total_nops} NOPs  {total_slots} slots\n")
+        hf.write(f"# {total_insts} insts  {total_slots} slots\n")
         hf.write(f"# HALT byte PC={halt_byte_pc}  (word slot {halt_byte_pc//4})\n")
         hf.write(f"# STACK_TOP=0x{stack_top:04X}  RODATA_BASE=0x{rodata_base:04X}\n")
-        hf.write(f"# Format: 0x<word>  # comment  (sequential, bash auto-increments from word 0)\n")
-        hf.write(f"# bash: load_mem_file imem imem.hex 0\n")
+        hf.write(f"# Format: 0x<word>  (sequential, no address field)\n")
         hf.write("#\n")
-
-        for (bpc, slot_idx, word, orig_mn, orig_args,
-             emn, eargs, n_nop, haz) in encoded:
+        for (byte_pc, slot_idx, word, orig_mn, orig_args, emn, eargs) in encoded:
             lbls = slot2lbl.get(slot_idx, [])
             if lbls:
-                hf.write(f"# <{'  '.join(lbls)}> (byte {bpc}, slot {slot_idx})\n")
+                hf.write(f"# <{'  '.join(lbls)}> (byte {byte_pc}, slot {slot_idx})\n")
             asm_str = f"{orig_mn} {orig_args}".strip()
-            haz_str = f"  [{haz}]" if haz else ""
-            hf.write(f"0x{word:08X}  # [{slot_idx}] {asm_str}{haz_str}\n")
-            for k in range(n_nop):
-                hf.write(f"0x{NOP_WORD:08X}  # [{slot_idx+1+k}] NOP\n")
+            hf.write(f"0x{word:08X}  # [{slot_idx}] {asm_str}\n")
+            for k in range(1, SLOTS_PER_INST):
+                hf.write(f"0x{NOP_WORD:08X}  # [{slot_idx+k}] NOP\n")
 
     print(f"[输出] {imem_path}")
 
-    # ─────────────────────────────────────────────────────────────────────────
-    #  生成 dmem.hex
-    #  格式：0x<WORD>  # 注释（顺序列出，无地址字段）
-    #  bash 脚本以 base_word=DMEM_BASE_WORD（默认256）起自动递增地址写入 dmem
-    #  rodata_base // 4 必须等于 DMEM_BASE_WORD，否则需要调整 --rodata 参数
-    # ─────────────────────────────────────────────────────────────────────────
+    # ── 生成 dmem.hex ─────────────────────────────────────────────────────────
+    # 格式：每行 0x<WORD>，顺序列出
+    # pip_reg 以 rodata_base//4 为起始 word 地址自动递增写入
     with open(dmem_path, "w", encoding="utf-8") as hf:
         hf.write(f"# dmem.hex — generated from {os.path.basename(src_path)}\n")
         hf.write(f"# .rodata: {len(rodata_data)} words\n")
         hf.write(f"# Dcache word base = {rodata_base//4}  (RODATA_BASE=0x{rodata_base:04X})\n")
-        hf.write(f"# bash: DMEM_BASE_WORD={rodata_base//4} load_mem_file dmem dmem.hex {rodata_base//4}\n")
-        hf.write(f"# Format: <hex_word>  # comment  (auto-increments from DMEM_BASE_WORD)\n")
+        hf.write(f"# pip_reg usage: load dmem starting from word addr {rodata_base//4}\n")
+        hf.write(f"# Format: 0x<word>  (sequential, no address field)\n")
         hf.write("#\n")
         if rodata_data:
             for idx, val in enumerate(rodata_data):
@@ -672,7 +479,7 @@ def assemble(src_path, rodata_base=DEFAULT_RODATA_BASE, stack_top=DEFAULT_STACK_
 # ─────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="RV32I Assembler for Early-Branch Pipeline (RAW-aware NOP insertion)")
+        description="RV32I Assembler for Early-Branch Pipeline (fixed 2-NOP per inst)")
     parser.add_argument("src",      help="汇编源文件 (.asm / .s)")
     parser.add_argument("--rodata", default=None,
                         help=f"rodata 字节基址（默认 0x{DEFAULT_RODATA_BASE:X}）")

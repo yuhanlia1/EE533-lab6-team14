@@ -1,0 +1,253 @@
+#!/usr/bin/perl -w
+use lib "/usr/local/netfpga/lib/Perl5";
+use strict;
+
+my $SW_IMEM_CTRL_REG      = 0x2000300;
+my $SW_IMEM_WRITE_REG     = 0x2000304;
+my $SW_IMEM_ADDR_REG      = 0x2000308;
+my $SW_IMEM_WDATA_REG     = 0x200030c;
+
+my $SW_DMEM_CTRL_REG      = 0x2000310;
+my $SW_DMEM_WRITE_REG     = 0x2000314;
+my $SW_DMEM_ADDR_REG      = 0x2000318;
+my $SW_DMEM_WDATA_REG     = 0x200031c;
+
+my $SW_DBG_REGSEL_REG     = 0x2000320;
+
+my $HW_IMEM_RDATA_REG     = 0x2000324;
+my $HW_DMEM_R_DATA_REG    = 0x2000328;
+my $HW_DBG_RDATA_REG      = 0x200032c;
+
+sub parse_u32 {
+   my ($s) = @_;
+   if (!defined $s) { return 0; }
+   if ($s =~ /^\s*-?\d+\s*$/) {
+      my $v = int($s);
+      $v = $v & 0xFFFFFFFF;
+      return $v;
+   }
+   if ($s =~ /^0x/i) { return hex($s); }
+   if ($s =~ /[a-fA-F]/) { return hex($s); }
+   return int($s);
+}
+
+sub fmt_u32 {
+   my ($v) = @_;
+   return sprintf("0x%08x", $v & 0xFFFFFFFF);
+}
+
+sub regwrite_u32 {
+   my ($addr, $data) = @_;
+   my $a = sprintf("0x%08x", $addr & 0xFFFFFFFF);
+   my $d = sprintf("0x%08x", $data & 0xFFFFFFFF);
+   system("regwrite", $a, $d);
+}
+
+sub regread_u32 {
+   my ($addr) = @_;
+   my $a = sprintf("0x%08x", $addr & 0xFFFFFFFF);
+   my $out = `regread $a`;
+   if ($? != 0) { die "regread failed: $a\n"; }
+   my @hex = ($out =~ /0x([0-9a-fA-F]{8})/g);
+   if (@hex >= 1) {
+      return hex($hex[-1]);
+   }
+   die "could not parse regread output: $out\n";
+}
+
+sub tiny_delay {
+   select(undef, undef, undef, 0.002);
+}
+
+sub freeze_core {
+   regwrite_u32($SW_IMEM_CTRL_REG, 1);
+   regwrite_u32($SW_DMEM_CTRL_REG, 1);
+}
+
+sub unfreeze_core {
+   regwrite_u32($SW_IMEM_WRITE_REG, 0);
+   regwrite_u32($SW_DMEM_WRITE_REG, 0);
+   regwrite_u32($SW_IMEM_CTRL_REG, 0);
+   regwrite_u32($SW_DMEM_CTRL_REG, 0);
+}
+
+sub imem_write_word {
+   my ($addr, $inst) = @_;
+   regwrite_u32($SW_IMEM_CTRL_REG, 1);
+   regwrite_u32($SW_IMEM_ADDR_REG, $addr);
+   regwrite_u32($SW_IMEM_WDATA_REG, $inst);
+   regwrite_u32($SW_IMEM_WRITE_REG, 1);
+   tiny_delay();
+   regwrite_u32($SW_IMEM_WRITE_REG, 0);
+}
+
+sub imem_read_word {
+   my ($addr) = @_;
+   regwrite_u32($SW_IMEM_CTRL_REG, 1);
+   regwrite_u32($SW_IMEM_ADDR_REG, $addr);
+   regwrite_u32($SW_IMEM_WRITE_REG, 0);
+   tiny_delay();
+   return regread_u32($HW_IMEM_RDATA_REG);
+}
+
+sub dmem_write_word {
+   my ($addr, $data) = @_;
+   regwrite_u32($SW_DMEM_CTRL_REG, 1);
+   regwrite_u32($SW_DMEM_ADDR_REG, $addr);
+   regwrite_u32($SW_DMEM_WDATA_REG, $data);
+   regwrite_u32($SW_DMEM_WRITE_REG, 1);
+   tiny_delay();
+   regwrite_u32($SW_DMEM_WRITE_REG, 0);
+}
+
+sub dmem_read_word {
+   my ($addr) = @_;
+   regwrite_u32($SW_DMEM_CTRL_REG, 1);
+   regwrite_u32($SW_DMEM_ADDR_REG, $addr);
+   regwrite_u32($SW_DMEM_WRITE_REG, 0);
+   tiny_delay();
+   return regread_u32($HW_DMEM_R_DATA_REG);
+}
+
+sub dbg_set_sel {
+   my ($sel) = @_;
+   regwrite_u32($SW_DBG_REGSEL_REG, $sel);
+}
+
+sub dbg_read32 {
+   return regread_u32($HW_DBG_RDATA_REG);
+}
+
+sub dbg_read32_with_sel {
+   my ($sel) = @_;
+   dbg_set_sel($sel);
+   tiny_delay();
+   return dbg_read32();
+}
+
+sub dbg_dump_range {
+   my ($start, $count) = @_;
+   my $k;
+   for ($k = 0; $k < $count; $k = $k + 1) {
+      my $sel = $start + $k;
+      my $v = dbg_read32_with_sel($sel);
+      printf("DBG[%d] = %s\n", $sel, fmt_u32($v));
+   }
+}
+
+sub dump_allregs {
+   my $sw_imem_ctrl  = regread_u32($SW_IMEM_CTRL_REG);
+   my $sw_imem_write = regread_u32($SW_IMEM_WRITE_REG);
+   my $sw_imem_addr  = regread_u32($SW_IMEM_ADDR_REG);
+   my $sw_imem_wdata = regread_u32($SW_IMEM_WDATA_REG);
+
+   my $sw_dmem_ctrl  = regread_u32($SW_DMEM_CTRL_REG);
+   my $sw_dmem_write = regread_u32($SW_DMEM_WRITE_REG);
+   my $sw_dmem_addr  = regread_u32($SW_DMEM_ADDR_REG);
+   my $sw_dmem_wdata = regread_u32($SW_DMEM_WDATA_REG);
+
+   my $sw_dbg_sel    = regread_u32($SW_DBG_REGSEL_REG);
+
+   my $hw_imem_rdata = regread_u32($HW_IMEM_RDATA_REG);
+   my $hw_dmem_rdata = regread_u32($HW_DMEM_R_DATA_REG);
+   my $hw_dbg_rdata  = regread_u32($HW_DBG_RDATA_REG);
+
+   print "\n[SW regs]\n";
+   printf("  IMEM_CTRL   = %s\n", fmt_u32($sw_imem_ctrl));
+   printf("  IMEM_WRITE  = %s\n", fmt_u32($sw_imem_write));
+   printf("  IMEM_ADDR   = %s\n", fmt_u32($sw_imem_addr));
+   printf("  IMEM_WDATA  = %s\n", fmt_u32($sw_imem_wdata));
+   printf("  DMEM_CTRL   = %s\n", fmt_u32($sw_dmem_ctrl));
+   printf("  DMEM_WRITE  = %s\n", fmt_u32($sw_dmem_write));
+   printf("  DMEM_ADDR   = %s\n", fmt_u32($sw_dmem_addr));
+   printf("  DMEM_WDATA  = %s\n", fmt_u32($sw_dmem_wdata));
+   printf("  DBG_REGSEL  = %s\n", fmt_u32($sw_dbg_sel));
+
+   print "\n[HW regs]\n";
+   printf("  IMEM_RDATA  = %s\n", fmt_u32($hw_imem_rdata));
+   printf("  DMEM_R_DATA = %s\n", fmt_u32($hw_dmem_rdata));
+   printf("  DBG_RDATA   = %s\n\n", fmt_u32($hw_dbg_rdata));
+}
+
+sub usage {
+   print "Usage: $0 <cmd> [args]\n";
+   print "  freeze\n";
+   print "  unfreeze\n";
+   print "  imem_write <addr> <inst32>\n";
+   print "  imem_read  <addr>\n";
+   print "  dmem_write <addr> <data32>\n";
+   print "  dmem_read  <addr>\n";
+   print "  allregs\n";
+   print "  dbg_sel   <sel>\n";
+   print "  dbg_read\n";
+   print "  dbg_read32 <sel>\n";
+   print "  dbg_dump  <start> <count>\n";
+}
+
+my $numargs = $#ARGV + 1;
+if ($numargs < 1) { usage(); exit(1); }
+
+my $cmd = $ARGV[0];
+
+if ($cmd eq "freeze") {
+   freeze_core();
+
+} elsif ($cmd eq "unfreeze") {
+   unfreeze_core();
+
+} elsif ($cmd eq "imem_write") {
+   if ($numargs < 3) { usage(); exit(1); }
+   my $addr = parse_u32($ARGV[1]);
+   my $inst = parse_u32($ARGV[2]);
+   imem_write_word($addr, $inst);
+   printf("IMEM[%d] <= %s\n\n", $addr, fmt_u32($inst));
+
+} elsif ($cmd eq "imem_read") {
+   if ($numargs < 2) { usage(); exit(1); }
+   my $addr = parse_u32($ARGV[1]);
+   my $v = imem_read_word($addr);
+   printf("IMEM[%d] = %s\n\n", $addr, fmt_u32($v));
+
+} elsif ($cmd eq "dmem_write") {
+   if ($numargs < 3) { usage(); exit(1); }
+   my $addr = parse_u32($ARGV[1]);
+   my $data = parse_u32($ARGV[2]);
+   dmem_write_word($addr, $data);
+   printf("DMEM[%d] <= %s\n\n", $addr, fmt_u32($data));
+
+} elsif ($cmd eq "dmem_read") {
+   if ($numargs < 2) { usage(); exit(1); }
+   my $addr = parse_u32($ARGV[1]);
+   my $v = dmem_read_word($addr);
+   printf("DMEM[%d] = %s\n\n", $addr, fmt_u32($v));
+
+} elsif ($cmd eq "dbg_sel") {
+   if ($numargs < 2) { usage(); exit(1); }
+   my $sel = parse_u32($ARGV[1]);
+   dbg_set_sel($sel);
+   printf("DBG_REGSEL <= %d\n\n", $sel);
+
+} elsif ($cmd eq "dbg_read") {
+   my $v = dbg_read32();
+   printf("DBG = %s\n\n", fmt_u32($v));
+
+} elsif ($cmd eq "dbg_read32") {
+   if ($numargs < 2) { usage(); exit(1); }
+   my $sel = parse_u32($ARGV[1]);
+   my $v = dbg_read32_with_sel($sel);
+   printf("DBG[%d] = %s\n\n", $sel, fmt_u32($v));
+
+} elsif ($cmd eq "dbg_dump") {
+   if ($numargs < 3) { usage(); exit(1); }
+   my $start = parse_u32($ARGV[1]);
+   my $count = parse_u32($ARGV[2]);
+   dbg_dump_range($start, $count);
+
+} elsif ($cmd eq "allregs") {
+   dump_allregs();
+
+} else {
+   print "Unrecognized command $cmd\n";
+   usage();
+   exit(1);
+}

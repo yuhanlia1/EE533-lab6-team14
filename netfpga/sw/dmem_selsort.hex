@@ -1,0 +1,11 @@
+# dmem.hex — generated from Selectsort_rv32i_gen.s
+# .rodata: 5 words
+# Dcache word base = 256  (RODATA_BASE=0x0400)
+# pip_reg usage: load dmem starting from word addr 256
+# Format: 0x<word>  (sequential, no address field)
+#
+0x00000005  # [256] 5
+0x00000002  # [257] 2
+0x00000009  # [258] 9
+0x00000001  # [259] 1
+0x00000003  # [260] 3
