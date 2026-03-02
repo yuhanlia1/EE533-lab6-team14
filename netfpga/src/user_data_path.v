@@ -274,7 +274,7 @@ module user_data_path
       .reg_data_out        (pipe_in_reg_data),
       .reg_src_out         (pipe_in_reg_src),
 
-      .clk                 (clk),
+      .clk                  (clk),
       .reset               (reset));
 
    pipeline_datapath
@@ -380,7 +380,7 @@ module user_data_path
       .rd_0_addr        (rd_0_addr),
       .rd_0_req         (rd_0_req),
 
-      .clk              (clk),
+      .clk                  (clk),
       .reset            (reset)
    );
 
@@ -408,7 +408,7 @@ module user_data_path
       .reg_data_in       (udp_reg_data_in),
       .reg_src_in        (udp_reg_src_in),
 
-      .clk               (clk),
+      .clk                  (clk),
       .reset             (reset)
    );
 

@@ -70,8 +70,10 @@ wire [31:0] instr_id;
 wire        flush_out;
 
 wire [31:0] imm_id;
-wire [10:0] addr_id;
-wire        jump_valid_id;
+
+wire        is_b_id;
+wire        is_jal_id;
+wire        is_jalr_id;
 
 wire        wreg_id;
 wire [31:0] rd1_id;
@@ -84,6 +86,12 @@ wire        WMM_id;
 wire        RMM_id;
 wire        MOA_id;
 wire        jal_jalr_id;
+
+wire [10:0] pc_ex;
+wire        wist_ex;
+wire        is_b_ex;
+wire        is_jal_ex;
+wire        is_jalr_ex;
 
 wire [31:0] IMM_ex;
 wire        wreg_ex;
@@ -132,9 +140,12 @@ wire        wreg_mm_wb;
 wire [4:0]  rd_mm_wb;
 wire        MOA_mm_wb;
 
-assign flush_in_raw = jump_valid_id;
+wire        jump_valid_ex_final;
+wire [10:0] jump_addr_ex_final;
+
+assign flush_in_raw = jump_valid_ex_final;
 assign flush_in     = flush_in_raw & en_reg;
-assign pc_new       = addr_id;
+assign pc_new       = jump_addr_ex_final;
 
 wire wb_wreg_core;
 assign wb_wreg_core = wb_wreg_out & en_reg;
@@ -219,14 +230,13 @@ id_stage id_stage_inst (
   .wb_data    (wb_data_out),
   .wb_wea     (wb_wreg_core),
 
-  .wist       (flush_out),
-
   .dbg_addr   (dbg_raddr),
-  .dbg_rdata   (dbg_rdata),
+  .dbg_rdata  (dbg_rdata),
 
   .imm        (imm_id),
-  .addr_out   (addr_id),
-  .jump_valid (jump_valid_id),
+  .is_b_out   (is_b_id),
+  .is_jal_out (is_jal_id),
+  .is_jalr_out(is_jalr_id),
 
   .wreg       (wreg_id),
   .rd1_out    (rd1_id),
@@ -246,6 +256,8 @@ id_ex_reg id_ex_inst (
   .rst         (reset),
   .enable      (en_reg),
 
+  .pc_in       (pc_id),
+
   .IMM         (imm_id),
   .wreg        (wreg_id),
   .rd2         (rd2_id),
@@ -259,6 +271,14 @@ id_ex_reg id_ex_inst (
   .MOA         (MOA_id),
   .jal_jalr    (jal_jalr_id),
 
+  .flush_in    (flush_in),
+  .flush_out   (flush_out),
+
+  .is_b_in    (is_b_id),
+  .is_jal_in   (is_jal_id),
+  .is_jalr_in  (is_jalr_id),
+
+  .pc_out      (pc_ex),
   .IMM_out     (IMM_ex),
   .wreg_out    (wreg_ex),
   .rd2_out     (rd2_ex),
@@ -270,31 +290,45 @@ id_ex_reg id_ex_inst (
   .WMM_out     (WMM_ex),
   .RMM_out     (RMM_ex),
   .MOA_out     (MOA_ex),
-  .jal_jalr_out(jal_jalr_ex)
+  .jal_jalr_out(jal_jalr_ex),
+
+  .wist_out    (wist_ex),
+  .is_b_out   (is_b_ex),
+  .is_jal_out  (is_jal_ex),
+  .is_jalr_out (is_jalr_ex)
 );
 
 ex_stage ex_stage_inst (
-  .IMM_in       (IMM_ex),
-  .wreg_in      (wreg_ex),
-  .rd2_in       (rd2_ex),
-  .rd1_in       (rd1_ex),
-  .rd_in        (rd_ex),
-  .func3_in     (func3_ex),
-  .func7_in     (func7_ex),
-  .ALUsrc_in    (ALUsrc_ex),
-  .WMM_in       (WMM_ex),
-  .RMM_in       (RMM_ex),
-  .MOA_in       (MOA_ex),
-  .jal_jalr_in  (jal_jalr_ex),
+  .pc_in         (pc_ex),
+  .IMM_in        (IMM_ex),
+  .wreg_in       (wreg_ex),
+  .rd2_in        (rd2_ex),
+  .rd1_in        (rd1_ex),
+  .rd_in         (rd_ex),
+  .func3_in      (func3_ex),
+  .func7_in      (func7_ex),
+  .ALUsrc_in     (ALUsrc_ex),
+  .WMM_in        (WMM_ex),
+  .RMM_in        (RMM_ex),
+  .MOA_in        (MOA_ex),
+  .jal_jalr_in   (jal_jalr_ex),
 
-  .alu_out      (alu_ex),
-  .rd2_out      (rd2_ex_o),
-  .wreg_out     (wreg_ex_o),
-  .rd_out       (rd_ex_o),
-  .WMM_out      (WMM_ex_o),
-  .RMM_out      (RMM_ex_o),
-  .MOA_out      (MOA_ex_o),
-  .jal_jalr_out (jal_jalr_ex_o)
+  .wist_in       (wist_ex),
+  .is_b_in      (is_b_ex),
+  .is_jal_in     (is_jal_ex),
+  .is_jalr_in    (is_jalr_ex),
+
+  .alu_out       (alu_ex),
+  .rd2_out       (rd2_ex_o),
+  .wreg_out      (wreg_ex_o),
+  .rd_out        (rd_ex_o),
+  .WMM_out       (WMM_ex_o),
+  .RMM_out       (RMM_ex_o),
+  .MOA_out       (MOA_ex_o),
+  .jal_jalr_out  (jal_jalr_ex_o),
+
+  .jump_valid_out(jump_valid_ex_final),
+  .jump_addr_out (jump_addr_ex_final)
 );
 
 ex_mm_reg ex_mm_reg_inst (
@@ -324,14 +358,12 @@ ex_mm_reg ex_mm_reg_inst (
 mm_stage mm_stage_inst (
   .clk              (clk),
 
-  .alu_in_bypass    (alu_ex),			// don't delete: bypass from ex stage
-  .alu_in			(alu_mem_in),
-  .rd2_in_bypass    (rd2_ex_o),			// don't delete: bypass from ex stage
-  .rd2_in		    (rd2_mem_in),
+  .alu_in           (alu_mem_in),
+  .rd2_in           (rd2_mem_in),
   .wreg_in          (wreg_mem_in),
   .rd_in            (rd_mem_in),
-  .WMM_in           (WMM_ex_o),			// don't delete: bypass from ex stage
-  .RMM_in           (RMM_ex_o),			// don't delete: bypass from ex stage
+  .WMM_in           (WMM_mem_in),
+  .RMM_in           (RMM_mem_in),
   .MOA_in           (MOA_mem_in),
   .jal_jalr_in      (jal_jalr_mem_in),
 
@@ -340,7 +372,7 @@ mm_stage mm_stage_inst (
   .dmem_sw_wdata    (sw_dmem_wdata),
   .dmem_sw_we       (dmem_sw_we),
 
-  .alu_out          (alu_mm),			
+  .alu_out          (alu_mm),
   .mem_out          (mem_mm),
   .wreg_out         (wreg_mm),
   .rd_out           (rd_mm),
@@ -352,7 +384,7 @@ mm_wb_reg mm_wb_reg_inst (
   .rst      (reset),
   .enable   (en_reg),
 
-  .alu_in   (alu_mm),				
+  .alu_in   (alu_mm),
   .mem_in   (mem_mm),
   .wreg_in  (wreg_mm),
   .rd_in    (rd_mm),

@@ -1,5 +1,7 @@
 // XLEN = 32 regsfile
 
+`timescale 1ns/1ps
+
 module reg_files (
   input  wire        clk,
   input  wire        rst,
